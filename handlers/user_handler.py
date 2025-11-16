@@ -96,6 +96,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         
+        if not config.AUTO_UNBLOCK_ENABLED:
+            await update.message.reply_text("自动解封功能已禁用。请联系管理员进行申诉。")
+            return
+
         from services.blacklist import start_unblock_process
         message, keyboard = await start_unblock_process(user.id)
         if message and keyboard:
@@ -125,10 +129,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_data = await db.get_user(user.id)
 
     if not user_data.get('is_verified'):
-        context.user_data['pending_update'] = update
-        question, keyboard = await create_verification(user.id)
-        await update.message.reply_text(question, reply_markup=keyboard)
-        return
+        if not config.VERIFICATION_ENABLED:
+            await db.update_user_verification(user.id, is_verified=True)
+        else:
+            context.user_data['pending_update'] = update
+            question, keyboard = await create_verification(user.id)
+            await update.message.reply_text(question, reply_markup=keyboard)
+            return
     
     
     message = update.message
