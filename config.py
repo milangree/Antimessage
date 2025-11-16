@@ -8,7 +8,7 @@ class Config:
     BOT_TOKEN = os.getenv('BOT_TOKEN')
     BOT_ID = None
     BOT_USERNAME = None
-    FORUM_GROUP_ID = int(os.getenv('FORUM_GROUP_ID', 0))
+    FORUM_GROUP_ID = int(os.getenv('FORUM_GROUP_ID') or 0)
     ADMIN_IDS = [int(id) for id in os.getenv('ADMIN_IDS', '').split(',') if id]
     
     
@@ -35,10 +35,8 @@ class Config:
     def validate(cls):
         if not cls.BOT_TOKEN:
             raise ValueError("BOT_TOKEN未设置")
-        if not cls.FORUM_GROUP_ID:
-            raise ValueError("FORUM_GROUP_ID未设置")
-        if not cls.ADMIN_IDS:
-            raise ValueError("ADMIN_IDS未设置")
+        if not cls.FORUM_GROUP_ID or not cls.ADMIN_IDS:
+            print("警告: FORUM_GROUP_ID 或 ADMIN_IDS 未设置。只有 /getid 功能可用。")
 
 
 config = Config()

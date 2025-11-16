@@ -20,9 +20,6 @@ def main():
     )
     
     
-    config.validate()
-    
-    
     db_manager = DatabaseManager(config.DATABASE_PATH)
     asyncio.run(db_manager.initialize())
     
@@ -31,6 +28,9 @@ def main():
     
     
     register_handlers(app)
+    
+    
+    config.validate()
     
     
     logging.info("Bot启动中...")
