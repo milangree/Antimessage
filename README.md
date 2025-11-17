@@ -167,7 +167,7 @@ docker-compose pull
 docker-compose up -d
 ```
 
-> [使用 Watchtower 自动更新本项目](watchtower/README.md)
+[使用 Watchtower 自动更新本项目](watchtower/README.md)
 
 ---
 ### 使用 Docker Run
