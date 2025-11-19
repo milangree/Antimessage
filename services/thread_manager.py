@@ -38,7 +38,6 @@ async def send_user_info_card(update: Update, context: ContextTypes.DEFAULT_TYPE
     from handlers.user_handler import _resend_message 
     user = update.effective_user
     
-    
     photos = await context.bot.get_user_profile_photos(user.id, limit=1)
     
     

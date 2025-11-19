@@ -31,6 +31,9 @@ class Config:
     VERIFICATION_TIMEOUT = int(os.getenv('VERIFICATION_TIMEOUT', '300'))
     MAX_VERIFICATION_ATTEMPTS = int(os.getenv('MAX_VERIFICATION_ATTEMPTS', '3'))
     
+    
+    MAX_MESSAGES_PER_MINUTE = int(os.getenv('MAX_MESSAGES_PER_MINUTE', '30'))
+    
     @classmethod
     def validate(cls):
         if not cls.BOT_TOKEN:

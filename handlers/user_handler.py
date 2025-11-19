@@ -6,11 +6,11 @@ from services.verification import create_verification
 from services.thread_manager import get_or_create_thread
 from services.gemini_service import gemini_service
 from utils.media_converter import sticker_to_image
+from services.rate_limiter import rate_limiter
 from config import config
 
 async def _resend_message(update: Update, context: ContextTypes.DEFAULT_TYPE, thread_id: int):
     message = update.message
-    
     
     if message.text:
         await context.bot.send_message(
@@ -82,11 +82,36 @@ async def _resend_message(update: Update, context: ContextTypes.DEFAULT_TYPE, th
         )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    
+    is_over_limit, was_warned = await rate_limiter.check_user_rate_limit(user.id)
+    
+    if is_over_limit:
+        if was_warned:
+            await db.add_to_blacklist(
+                user.id,
+                reason="忽略速率限制警告，多次超出限制",
+                blocked_by=config.BOT_ID,
+                permanent=True
+            )
+            await db.set_user_blacklist_strikes(user.id, 99)
+            await update.message.reply_text(
+                "您收到速率警告后仍然超出速率限制，已被永久封禁。\n\n"
+                "如有疑问请联系管理员。"
+            )
+            return
+        else:
+            await rate_limiter.mark_user_warned(user.id)
+            await update.message.reply_text(
+                f"警告：您发送消息过于频繁，已超过速率限制。\n\n"
+                f"当前速率限制规则：每分钟最多 {config.MAX_MESSAGES_PER_MINUTE} 条消息。\n\n"
+                f"请稍后再试。如果继续超出限制，您将被永久封禁。"
+            )
+            return
+    
     if 'pending_update' in context.user_data:
         if context.user_data['pending_update'].update_id == update.update_id:
             context.user_data.pop('pending_update')
-
-    user = update.effective_user
     
     
     is_blocked, is_permanent = await db.is_blacklisted(user.id)

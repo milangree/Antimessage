@@ -34,7 +34,6 @@ class MessageQueue:
                 thread_id = await get_or_create_thread(update, context)
                 
                 if thread_id:
-                    
                     await context.bot.forward_message(
                         chat_id=config.FORUM_GROUP_ID,
                         from_chat_id=user.id,

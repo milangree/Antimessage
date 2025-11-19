@@ -127,11 +127,8 @@ MAX_VERIFICATION_ATTEMPTS=3
 # --- 速率限制 ---
 # 通常不需要修改
 
-# Bot每秒最大处理消息数
-MAX_MESSAGES_PER_SECOND=30
-
-# Bot每分钟在群组中最大发送消息数
-MAX_GROUP_MESSAGES_PER_MINUTE=20
+# Bot每分钟最大处理消息数（每个用户）
+MAX_MESSAGES_PER_MINUTE=30
 
 # -- Watchtower 通知钩子（默认禁用，启用需去除配置的#注释） --
 
