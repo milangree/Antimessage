@@ -188,10 +188,72 @@ async def get_total_users_count() -> int:
     async with db_manager.get_connection() as db:
         async with db.execute('SELECT COUNT(*) FROM users') as cursor:
             row = await cursor.fetchone()
-            return row if row else 0
+            return row[0] if row else 0
 
 async def get_blocked_users_count() -> int:
     async with db_manager.get_connection() as db:
         async with db.execute('SELECT COUNT(*) FROM blacklist') as cursor:
             row = await cursor.fetchone()
-            return row if row else 0
+            return row[0] if row else 0
+
+async def get_user_spam_count(user_id: int) -> int:
+    async with db_manager.get_connection() as db:
+        async with db.execute('SELECT COUNT(*) FROM filtered_messages WHERE user_id = ?', (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else 0
+
+async def get_all_users_paginated(limit: int = 5, offset: int = 0):
+    async with db_manager.get_connection() as db:
+        async with db.execute('''
+            SELECT 
+                u.user_id,
+                u.first_name,
+                u.username,
+                u.is_blacklisted,
+                COALESCE(spam_count.count, 0) as spam_count
+            FROM users u
+            LEFT JOIN (
+                SELECT user_id, COUNT(*) as count
+                FROM filtered_messages
+                GROUP BY user_id
+            ) spam_count ON u.user_id = spam_count.user_id
+            ORDER BY u.created_at DESC
+            LIMIT ? OFFSET ?
+        ''', (limit, offset)) as cursor:
+            rows = await cursor.fetchall()
+            if not rows:
+                return []
+            
+            cols = [description[0] for description in cursor.description]
+            return [dict(zip(cols, row)) for row in rows]
+
+async def get_blacklist_user_details(user_id: int):
+    async with db_manager.get_connection() as db:
+        async with db.execute('''
+            SELECT 
+                b.user_id,
+                u.first_name,
+                u.username,
+                u.last_name,
+                u.language_code,
+                u.is_blacklisted,
+                u.blacklist_strikes,
+                b.reason,
+                b.blocked_by,
+                b.blocked_at,
+                b.permanent,
+                COALESCE(spam_count.count, 0) as spam_count
+            FROM blacklist b
+            LEFT JOIN users u ON b.user_id = u.user_id
+            LEFT JOIN (
+                SELECT user_id, COUNT(*) as count
+                FROM filtered_messages
+                GROUP BY user_id
+            ) spam_count ON b.user_id = spam_count.user_id
+            WHERE b.user_id = ?
+        ''', (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                cols = [description[0] for description in cursor.description]
+                return dict(zip(cols, row))
+            return None

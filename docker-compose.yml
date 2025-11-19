@@ -3,7 +3,7 @@ services:
     container_name: TG-Antiharassment-Bot  # 容器名，可定义
     image: weijiaqaq/tg-antiharassment-bot:latest
     restart: unless-stopped
-    environment:
+    env_file:
      - .env
     volumes:
      - ./data:/app/data

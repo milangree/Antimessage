@@ -100,6 +100,8 @@ async def unblock(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @admin_only
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    
     total_users = await db.get_total_users_count()
     blocked_users = await db.get_blocked_users_count()
     
@@ -107,10 +109,20 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"机器人统计数据\n"
         f"---------------------\n"
         f"总用户数: {total_users}\n"
-        f"黑名单用户数: {blocked_users}\n"
+        f"黑名单用户数: {blocked_users}\n\n"
+        f"请选择要查看的列表："
     )
     
-    await update.message.reply_text(stats_message, parse_mode='Markdown')
+    keyboard = [
+        [InlineKeyboardButton("所有用户列表", callback_data="stats_list_all_users_page_1")],
+        [InlineKeyboardButton("黑名单用户列表", callback_data="stats_list_blacklist_page_1")]
+    ]
+    
+    await update.message.reply_text(
+        stats_message, 
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='Markdown'
+    )
 
 async def getid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_type = update.effective_chat.type

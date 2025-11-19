@@ -10,10 +10,9 @@ pending_unblocks = {}
 
 async def block_user(user_id: int, reason: str, admin_id: int, permanent: bool = False):
     await db.add_to_blacklist(user_id, reason, admin_id, permanent)
-    if permanent:
-        await db.set_user_blacklist_strikes(user_id, 99)
-        return f"用户 {user_id} 已被管理员永久拉黑。\n原因: {reason}"
-    return f"用户 {user_id} 已被管理员拉黑。\n原因: {reason}"
+    # 注意：add_to_blacklist 已经会自动增加 blacklist_strikes
+    # 永久封禁时不应该覆盖真实的封禁次数，所以不再设置 99
+    return f"用户 {user_id} 已被管理员{'永久' if permanent else ''}拉黑。\n原因: {reason}"
 
 async def unblock_user(user_id: int):
     await db.remove_from_blacklist(user_id)
@@ -111,7 +110,7 @@ async def verify_unblock_answer(user_id: int, user_answer: str):
     else:
         del pending_unblocks[user_id]
         await db.add_to_blacklist(user_id, reason="解封验证失败", blocked_by=config.BOT_ID, permanent=True)
-        await db.set_user_blacklist_strikes(user_id, 99)
+        # add_to_blacklist 已经会自动增加 blacklist_strikes，不需要再设置为 99
         return "答案错误，解封失败。您已被永久封禁。", False
 
 def _safe_text_for_markdown(text: str) -> str:
@@ -173,4 +172,169 @@ async def get_blacklist_keyboard(page: int = 1, per_page: int = 5):
     if navigation_buttons:
         keyboard.append(navigation_buttons)
 
+    return message, InlineKeyboardMarkup(keyboard)
+
+async def get_all_users_keyboard(page: int = 1, per_page: int = 5):
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    
+    total_count = await db.get_total_users_count()
+    
+    if total_count == 0:
+        return "没有用户。", None
+
+    total_pages = (total_count + per_page - 1) // per_page
+
+    if page < 1:
+        page = 1
+    elif page > total_pages:
+        page = total_pages
+
+    offset = (page - 1) * per_page
+
+    users = await db.get_all_users_paginated(limit=per_page, offset=offset)
+    
+    if not users:
+        return "没有用户。", None
+
+    keyboard = []
+    message = f"所有用户列表 (第 {page}/{total_pages} 页)\n\n"
+    
+    for idx, user in enumerate(users, 1):
+        user_id = user.get('user_id')
+        first_name = user.get('first_name') or 'N/A'
+        username = user.get('username')
+        is_blacklisted = user.get('is_blacklisted', 0)
+        spam_count = user.get('spam_count', 0)
+        
+        safe_first_name = _safe_text_for_markdown(first_name)
+        safe_username = _safe_text_for_markdown(username) if username else None
+        
+        user_info = f"{safe_first_name}"
+        if safe_username:
+            user_info += f" (@{safe_username})"
+        
+        blacklist_status = "是" if is_blacklisted else "否"
+        has_spam = "是" if spam_count > 0 else "否"
+        
+        message += (
+            f"{idx}. {user_info} (`{user_id}`)\n"
+            f"   是否被拉黑: {blacklist_status}\n"
+            f"   是否发送过垃圾信息: {has_spam}\n"
+            f"   发送垃圾信息条数: {spam_count}\n\n"
+        )
+    
+    navigation_buttons = []
+    if page > 1:
+        navigation_buttons.append(InlineKeyboardButton("上一页", callback_data=f"stats_list_all_users_page_{page - 1}"))
+    if page < total_pages:
+        navigation_buttons.append(InlineKeyboardButton("下一页", callback_data=f"stats_list_all_users_page_{page + 1}"))
+    
+    back_button = [InlineKeyboardButton("返回统计菜单", callback_data="stats_back_to_menu")]
+    keyboard.append(back_button)
+    
+    if navigation_buttons:
+        keyboard.append(navigation_buttons)
+
+    if not keyboard:
+        keyboard = [[InlineKeyboardButton("返回统计菜单", callback_data="stats_back_to_menu")]]
+    
+    return message, InlineKeyboardMarkup(keyboard)
+
+async def get_blacklist_keyboard_detailed(page: int = 1, per_page: int = 5):
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    
+    total_count = await db.get_blacklist_count()
+    
+    if total_count == 0:
+        return "黑名单中没有用户。", None
+
+    total_pages = (total_count + per_page - 1) // per_page
+
+    if page < 1:
+        page = 1
+    elif page > total_pages:
+        page = total_pages
+
+    offset = (page - 1) * per_page
+
+    blacklist_users = await db.get_blacklist_paginated(limit=per_page, offset=offset)
+    
+    if not blacklist_users:
+        return "黑名单中没有用户。", None
+
+    keyboard = []
+    message = f"黑名单用户列表 (第 {page}/{total_pages} 页)\n\n"
+    
+    for idx, user in enumerate(blacklist_users, 1):
+        user_id = user.get('user_id')
+        user_details = await db.get_blacklist_user_details(user_id)
+        
+        if user_details:
+            first_name = user_details.get('first_name') or 'N/A'
+            username = user_details.get('username')
+            last_name = user_details.get('last_name')
+            reason = user_details.get('reason') or '无'
+            blocked_at = user_details.get('blocked_at')
+            permanent = user_details.get('permanent', 0)
+            blacklist_strikes = user_details.get('blacklist_strikes', 0)
+            spam_count = user_details.get('spam_count', 0)
+            
+            safe_first_name = _safe_text_for_markdown(first_name)
+            safe_username = _safe_text_for_markdown(username) if username else None
+            safe_reason = _safe_text_for_markdown(reason)
+            
+            user_info = f"{safe_first_name}"
+            if last_name:
+                user_info += f" {_safe_text_for_markdown(last_name)}"
+            if safe_username:
+                user_info += f" (@{safe_username})"
+            
+            permanent_text = "永久封禁" if permanent else "临时封禁"
+            
+            display_strikes = blacklist_strikes
+            
+            message += (
+                f"{idx}. {user_info} (`{user_id}`)\n"
+                f"   封禁类型: {permanent_text}\n"
+                f"   封禁原因: {safe_reason}\n"
+                f"   封禁次数: {display_strikes}\n"
+                f"   垃圾信息条数: {spam_count}\n"
+            )
+            if blocked_at:
+                message += f"   封禁时间: {blocked_at}\n"
+            message += "\n"
+        else:
+            first_name = user.get('first_name') or 'N/A'
+            username = user.get('username')
+            reason = user.get('reason') or '无'
+            
+            safe_first_name = _safe_text_for_markdown(first_name)
+            safe_username = _safe_text_for_markdown(username) if username else None
+            safe_reason = _safe_text_for_markdown(reason)
+            
+            user_info = f"{safe_first_name}"
+            if safe_username:
+                user_info += f" (@{safe_username})"
+            
+            message += f"{idx}. {user_info} (`{user_id}`)\n原因: {safe_reason}\n\n"
+        
+        keyboard.append([
+            InlineKeyboardButton(f"解封 {first_name}", callback_data=f"admin_unblock_{user_id}")
+        ])
+    
+    navigation_buttons = []
+    if page > 1:
+        navigation_buttons.append(InlineKeyboardButton("上一页", callback_data=f"stats_list_blacklist_page_{page - 1}"))
+    if page < total_pages:
+        navigation_buttons.append(InlineKeyboardButton("下一页", callback_data=f"stats_list_blacklist_page_{page + 1}"))
+    
+    back_button = [InlineKeyboardButton("返回统计菜单", callback_data="stats_back_to_menu")]
+    keyboard.append(back_button)
+    
+    if navigation_buttons:
+        keyboard.append(navigation_buttons)
+
+    if not keyboard:
+        keyboard = [[InlineKeyboardButton("返回统计菜单", callback_data="stats_back_to_menu")]]
+    
     return message, InlineKeyboardMarkup(keyboard)

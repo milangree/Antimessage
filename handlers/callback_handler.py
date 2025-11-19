@@ -135,6 +135,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         current_page = 1
         message_text = query.message.text or ""
+        is_stats_page = "黑名单用户列表" in message_text or "stats_list_blacklist" in str(query.message.reply_markup)
+        
         if "第" in message_text and "/" in message_text:
             try:
                 match = re.search(r'第\s*(\d+)/', message_text)
@@ -143,7 +145,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except:
                 pass
         
-        message, keyboard = await blacklist.get_blacklist_keyboard(page=current_page)
+        if is_stats_page:
+            message, keyboard = await blacklist.get_blacklist_keyboard_detailed(page=current_page)
+        else:
+            message, keyboard = await blacklist.get_blacklist_keyboard(page=current_page)
+        
         if keyboard:
             await query.edit_message_text(
                 text=message,
@@ -220,3 +226,79 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(response, reply_markup=keyboard)
         else:
             await query.edit_message_text(response)
+    
+    elif data.startswith("stats_list_all_users_page_"):
+        from services.blacklist import get_all_users_keyboard
+        
+        if not await db.is_admin(user_id):
+            await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
+            return
+        
+        try:
+            page = int(data.split("_")[5])
+        except (ValueError, IndexError):
+            await query.answer("无效的页码。", show_alert=True)
+            return
+        
+        message, keyboard = await get_all_users_keyboard(page=page)
+        if keyboard:
+            await query.edit_message_text(
+                text=message,
+                reply_markup=keyboard,
+                parse_mode='Markdown'
+            )
+        else:
+            await query.edit_message_text(text=message, parse_mode='Markdown')
+    
+    elif data.startswith("stats_list_blacklist_page_"):
+        from services.blacklist import get_blacklist_keyboard_detailed
+        
+        if not await db.is_admin(user_id):
+            await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
+            return
+        
+        try:
+            page = int(data.split("_")[4])
+        except (ValueError, IndexError):
+            await query.answer("无效的页码。", show_alert=True)
+            return
+        
+        message, keyboard = await get_blacklist_keyboard_detailed(page=page)
+        if keyboard:
+            await query.edit_message_text(
+                text=message,
+                reply_markup=keyboard,
+                parse_mode='Markdown'
+            )
+        else:
+            await query.edit_message_text(text=message, parse_mode='Markdown')
+    
+    elif data == "stats_back_to_menu":
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        from .command_handler import stats
+        
+        if not await db.is_admin(user_id):
+            await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
+            return
+        
+        total_users = await db.get_total_users_count()
+        blocked_users = await db.get_blocked_users_count()
+        
+        stats_message = (
+            f"机器人统计数据\n"
+            f"---------------------\n"
+            f"总用户数: {total_users}\n"
+            f"黑名单用户数: {blocked_users}\n\n"
+            f"请选择要查看的列表："
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("所有用户列表", callback_data="stats_list_all_users_page_1")],
+            [InlineKeyboardButton("黑名单用户列表", callback_data="stats_list_blacklist_page_1")]
+        ]
+        
+        await query.edit_message_text(
+            text=stats_message,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
