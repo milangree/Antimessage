@@ -15,7 +15,6 @@ def register_handlers(app: Application):
     app.add_handler(CommandHandler("getid", getid))
     app.add_handler(CommandHandler("start", start, filters=filters.ChatType.PRIVATE))
     
-    # 注册网络测试命令
     app.add_handler(CommandHandler("ping", ping_command))
     app.add_handler(CommandHandler("nexttrace", nexttrace_command))
     app.add_handler(CommandHandler("adduser", add_user_command))

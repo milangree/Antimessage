@@ -126,7 +126,6 @@ async def nexttrace_command(update, context):
     if len(args) >= 1:
         target = args[0]
         
-        # 添加模式选择按钮
         keyboard = [
             [
                 InlineKeyboardButton("ICMP模式", callback_data="nt_trace_mode_icmp"),
@@ -147,7 +146,6 @@ async def nexttrace_command(update, context):
             "message_id": msg.message_id
         }
     else:
-        # 添加模式选择按钮
         keyboard = [
             [
                 InlineKeyboardButton("ICMP模式", callback_data="nt_trace_mode_icmp"),
@@ -168,7 +166,6 @@ async def nexttrace_command(update, context):
             "message_id": msg.message_id
         }
 
-# ---------------- 管理员命令 ----------------
 async def add_user_command(update, context):
     user_id = update.effective_user.id
     if not check_is_admin(user_id, ADMIN_USERS):
@@ -237,42 +234,37 @@ async def add_server_command(update, context):
 
     message_text = update.message.text.strip()
     
-    # 如果命令没有带参数，启动交互式添加服务器流程
     if message_text == "/addserver":
-        # 启动交互式添加服务器流程
         msg = await update.message.reply_text(
             "欢迎使用交互式添加服务器向导！\n\n"
             "请按照提示一步一步输入服务器信息。\n"
-            "步骤 1/5: 请输入服务器名称（如：日本 - Acck）：\n\n"
+            "步骤 1/5: 请输入服务器名称（如：香港 - GCP）：\n\n"
             "您可以随时输入 /cancel 取消添加流程"
         )
         
         from .state import user_data
         user_data[user_id] = {
             "operation": "addserver",
-            "step": 1,  # 记录当前步骤：1=名称, 2=host, 3=port, 4=username, 5=password
-            "server_data": {},  # 存储服务器信息
+            "step": 1,
+            "server_data": {},
             "chat_id": msg.chat_id,
             "message_id": msg.message_id,
-            "prompt_message_id": msg.message_id  # 保存欢迎消息ID，方便后续删除
+            "prompt_message_id": msg.message_id
         }
         
-        # 删除用户的命令消息，保持界面整洁
         try:
             await context.bot.delete_message(
                 chat_id=update.message.chat_id,
                 message_id=update.message.message_id
             )
         except Exception:
-            pass  # 忽略删除失败的错误
+            pass
             
         return
     
-    # 用户取消添加流程
     if message_text == "/cancel":
         from .state import user_data
         if user_id in user_data and user_data[user_id].get("operation") == "addserver":
-            # 删除上一条提示消息
             if user_data[user_id].get("prompt_message_id"):
                 try:
                     await context.bot.delete_message(
@@ -280,27 +272,24 @@ async def add_server_command(update, context):
                         message_id=user_data[user_id]["prompt_message_id"]
                     )
                 except Exception:
-                    pass  # 忽略删除失败的错误
+                    pass
                     
             del user_data[user_id]
-            cancel_msg = await update.message.reply_text("✅ 已取消添加服务器操作。")
+            cancel_msg = await update.message.reply_text("已取消添加服务器操作。")
             
-            # 5秒后自动删除取消消息
             context.application.create_task(schedule_delete_message(context, update.message.chat_id, cancel_msg.message_id, delay=5))
             
-            # 删除用户的取消命令
             try:
                 await context.bot.delete_message(
                     chat_id=update.message.chat_id,
                     message_id=update.message.message_id
                 )
             except Exception:
-                pass  # 忽略删除失败的错误
+                pass
         else:
             await update.message.reply_text("当前没有正在进行的添加服务器操作。")
         return
     
-    # 处理带参数的情况（兼容原有的一次性添加方式）
     if ' ' in message_text:
         args_text = message_text.split(' ', 1)[1]
     else:
@@ -310,7 +299,7 @@ async def add_server_command(update, context):
             "2. 一次性提供所有参数：\n"
             "   /addserver <名称> <host> <port> <username> <password>\n\n"
             "名称可以包含空格，但需要用引号括起来，例如：\n"
-            "/addserver \"日本 - Acck\" 1.2.3.4 22 user pass"
+            "/addserver \"香港 - GCP\" 1.2.3.4 22 user pass"
         )
         return
     
@@ -328,7 +317,7 @@ async def add_server_command(update, context):
             "2. 一次性提供所有参数：\n"
             "   /addserver <名称> <host> <port> <username> <password>\n\n"
             "名称可以包含空格，但需要用引号括起来，例如：\n"
-            "/addserver \"日本 - Acck\" 1.2.3.4 22 user pass"
+            "/addserver \"香港 - GCP\" 1.2.3.4 22 user pass"
         )
         return
 
@@ -367,7 +356,6 @@ async def rm_server_command(update, context):
 
     message_text = update.message.text.strip()
     
-    # 如果命令没有带参数，显示可选的服务器列表
     if message_text == "/rmserver":
         if not SERVERS:
             await update.message.reply_text("当前没有配置任何服务器。")
@@ -381,7 +369,6 @@ async def rm_server_command(update, context):
             )
             keyboard.append([btn])
         
-        # 添加取消按钮
         keyboard.append([InlineKeyboardButton("取消", callback_data="nt_rmserver_cancel")])
         
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -395,21 +382,19 @@ async def rm_server_command(update, context):
             "operation": "rmserver",
             "chat_id": msg.chat_id,
             "message_id": msg.message_id,
-            "prompt_message_id": msg.message_id  # 保存消息ID，方便后续删除
+            "prompt_message_id": msg.message_id
         }
         
-        # 删除用户的命令消息，保持界面整洁
         try:
             await context.bot.delete_message(
                 chat_id=update.message.chat_id,
                 message_id=update.message.message_id
             )
         except Exception:
-            pass  # 忽略删除失败的错误
+            pass
         
         return
     
-    # 处理带参数的情况
     if ' ' in message_text:
         args_text = message_text.split(' ', 1)[1]
         try:
@@ -419,11 +404,11 @@ async def rm_server_command(update, context):
             await update.message.reply_text(f"参数解析错误：{str(e)}\n\n请确保如果名称中包含空格，应该用引号括起来。")
             return
     else:
-        await update.message.reply_text("直接输入 /rmserver 可以查看所有服务器并选择要删除的服务器。\n\n如果要直接指定删除，用法：/rmserver <服务器名字>\n如果服务器名称包含空格，请用引号括起来，例如：\n/rmserver \"日本 - Acck\"")
+        await update.message.reply_text("直接输入 /rmserver 可以查看所有服务器并选择要删除的服务器。\n\n如果要直接指定删除，用法：/rmserver <服务器名字>\n如果服务器名称包含空格，请用引号括起来，例如：\n/rmserver \"香港 - GCP\"")
         return
     
     if len(args) < 1:
-        await update.message.reply_text("直接输入 /rmserver 可以查看所有服务器并选择要删除的服务器。\n\n如果要直接指定删除，用法：/rmserver <服务器名字>\n如果服务器名称包含空格，请用引号括起来，例如：\n/rmserver \"日本 - Acck\"")
+        await update.message.reply_text("直接输入 /rmserver 可以查看所有服务器并选择要删除的服务器。\n\n如果要直接指定删除，用法：/rmserver <服务器名字>\n如果服务器名称包含空格，请用引号括起来，例如：\n/rmserver \"香港 - GCP\"")
         return
 
     target_name = args[0]
@@ -440,17 +425,15 @@ async def rm_server_command(update, context):
         save_config()
         result_msg = await update.message.reply_text(f"成功删除服务器：{removed_server['name']} (host={removed_server['host']})")
         
-        # 5秒后自动删除结果消息
         context.application.create_task(schedule_delete_message(context, update.message.chat_id, result_msg.message_id, delay=5))
         
-        # 删除用户的命令消息，保持界面整洁
         try:
             await context.bot.delete_message(
                 chat_id=update.message.chat_id,
                 message_id=update.message.message_id
             )
         except Exception:
-            pass  # 忽略删除失败的错误
+            pass
 
 async def install_nexttrace_command(update, context):
     user_id = update.effective_user.id
@@ -466,16 +449,14 @@ async def install_nexttrace_command(update, context):
         await update.message.reply_text("当前没有配置任何服务器。\n请先使用 /addserver 添加服务器。")
         return
         
-    # 删除用户的命令消息
     try:
         await context.bot.delete_message(
             chat_id=update.message.chat_id,
             message_id=update.message.message_id
         )
     except Exception:
-        pass  # 忽略删除失败的错误
+        pass
         
-    # 显示服务器列表供用户选择要安装的服务器
     keyboard = []
     for idx, server_info in enumerate(SERVERS):
         btn = InlineKeyboardButton(
@@ -484,7 +465,6 @@ async def install_nexttrace_command(update, context):
         )
         keyboard.append([btn])
     
-    # 添加取消按钮
     keyboard.append([InlineKeyboardButton("取消", callback_data="nt_installnexttrace_cancel")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -498,5 +478,5 @@ async def install_nexttrace_command(update, context):
         "operation": "installnexttrace",
         "chat_id": msg.chat_id,
         "message_id": msg.message_id,
-        "prompt_message_id": msg.message_id  # 保存消息ID，方便后续删除
+        "prompt_message_id": msg.message_id
     }

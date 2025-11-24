@@ -44,11 +44,11 @@ def parse_ping_output(output: str) -> str:
         return output
 
 def format_nexttrace_result(raw_output: str, server_name: str, target: str, ip_type: str, trace_mode: str = "icmp") -> str:
-    # 1. 删除 ANSI 颜色控制符
+    
     ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
     clean_output = ansi_escape.sub('', raw_output)
 
-    # 2. 按行拆分
+    
     lines = clean_output.splitlines()
     header_lines = []
     hop_lines = []
@@ -70,7 +70,7 @@ def format_nexttrace_result(raw_output: str, server_name: str, target: str, ip_t
             in_hops = True
             continue
             
-        if "TCP mode" in stripped or "TCP SYN" in stripped:  # 检测TCP模式
+        if "TCP mode" in stripped or "TCP SYN" in stripped:  
             found_tcp_mode = True
             in_hops = True
             continue
@@ -80,7 +80,7 @@ def format_nexttrace_result(raw_output: str, server_name: str, target: str, ip_t
         else:
             header_lines.append(stripped)
 
-    # 3. 合并同一 hop 的多行
+    
     condensed_hops = []
     current_hop = ""
     hop_start_pattern = re.compile(r'^\d+\s+')
@@ -98,12 +98,12 @@ def format_nexttrace_result(raw_output: str, server_name: str, target: str, ip_t
         current_hop = re.sub(r'\s+', ' ', current_hop).strip()
         condensed_hops.append(current_hop)
 
-    # 4. 隐藏第一跳的 IP 地址
+    
     if condensed_hops:
         pattern = r'\b((?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){7}|(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,7})?::(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,7})?))\b'
         condensed_hops[0] = re.sub(pattern, 'x.x.x.x', condensed_hops[0], count=1)
 
-    # 5. 拼接输出结果
+    
     result = "<b>【NextTrace 路由追踪结果】</b>\n\n"
     result += f"节点: {server_name}\n"
     result += f"目标: {target}\n"
@@ -143,7 +143,7 @@ def ping_on_server(server_info: dict, target: str, ping_count: int = 4) -> str:
     username = server_info['username']
     password = server_info['password']
 
-    # 定义SSH连接函数
+    
     def ssh_connect_and_execute():
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -164,7 +164,7 @@ def ping_on_server(server_info: dict, target: str, ping_count: int = 4) -> str:
             ssh.close() if 'ssh' in locals() and ssh.get_transport() and ssh.get_transport().is_active() else None
             raise Exception(f"SSH或执行命令异常: {str(e)}")
 
-    # 使用重试函数执行SSH连接和命令
+    
     return retry_operation(ssh_connect_and_execute, retries=3, delay=2)
 
 def nexttrace_on_server(server_info: dict, target: str, ip_type: str, trace_mode: str = "icmp") -> str:
@@ -173,7 +173,7 @@ def nexttrace_on_server(server_info: dict, target: str, ip_type: str, trace_mode
     username = server_info['username']
     password = server_info['password']
 
-    # 定义SSH连接函数
+    
     def ssh_connect_and_execute():
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -181,20 +181,20 @@ def nexttrace_on_server(server_info: dict, target: str, ip_type: str, trace_mode
             logging.info(f"正在连接到服务器 {host}:{port}")
             ssh.connect(hostname=host, port=port, username=username, password=password, timeout=5)
             
-            # 构建命令基础部分
+            
             cmd_base = "nexttrace"
             
-            # 添加IP类型参数
+            
             if ip_type == "IPv4":
                 cmd_base += " -4"
             elif ip_type == "IPv6":
                 cmd_base += " -6"
             
-            # 添加追踪模式
+            
             if trace_mode == "tcp":
                 cmd_base += " --tcp"
             
-            # 完成命令
+            
             cmd = f"{cmd_base} {target}"
             
             logging.info(f"正在执行命令: {cmd}")
@@ -212,17 +212,17 @@ def nexttrace_on_server(server_info: dict, target: str, ip_type: str, trace_mode
             ssh.close() if 'ssh' in locals() and ssh.get_transport() and ssh.get_transport().is_active() else None
             raise Exception(f"SSH或执行命令异常: {str(e)}")
 
-    # 使用重试函数执行SSH连接和命令
+    
     return retry_operation(ssh_connect_and_execute, retries=3, delay=2)
 
-# 添加一个安装nexttrace的函数
+
 def install_nexttrace_on_server(server_info: dict) -> str:
     host = server_info['host']
     port = server_info['port']
     username = server_info['username']
     password = server_info['password']
 
-    # 定义SSH连接函数
+    
     def ssh_connect_and_execute():
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -230,19 +230,19 @@ def install_nexttrace_on_server(server_info: dict) -> str:
             logging.info(f"正在连接到服务器 {host}:{port}")
             ssh.connect(hostname=host, port=port, username=username, password=password, timeout=5)
             
-            # 安装nexttrace命令
+            
             cmd = "curl nxtrace.org/nt | bash"
             
             logging.info(f"正在执行命令: {cmd}")
-            stdin, stdout, stderr = ssh.exec_command(cmd, timeout=60)  # 增加超时时间以应对安装过程
+            stdin, stdout, stderr = ssh.exec_command(cmd, timeout=60)  
             output = stdout.read().decode('utf-8', errors='ignore')
             error = stderr.read().decode('utf-8', errors='ignore')
             ssh.close()
 
-            # 检查是否安装成功
+            
             combined_output = output + "\n" + error
             if "一切准备就绪" in combined_output:
-                return "✅ NextTrace 安装成功！"
+                return "NextTrace 安装成功！"
             elif error.strip():
                 return f"命令执行错误：\n{error}"
             else:
@@ -251,5 +251,5 @@ def install_nexttrace_on_server(server_info: dict) -> str:
             ssh.close() if 'ssh' in locals() and ssh.get_transport() and ssh.get_transport().is_active() else None
             raise Exception(f"SSH或执行命令异常: {str(e)}")
 
-    # 使用重试函数执行SSH连接和命令
+    
     return retry_operation(ssh_connect_and_execute, retries=3, delay=2)

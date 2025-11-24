@@ -16,11 +16,16 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     user_id = query.from_user.id
     
-    # 先检查是否是网络测试的回调
     if data.startswith("nt_"):
         from network_test.handlers import callback_handler as network_callback_handler
         handled = await network_callback_handler(update, context)
-        if handled:
+        if not handled:
+            if data in ["nt_rmserver_cancel", "nt_installnexttrace_cancel"]:
+                from network_test.state import user_data
+                if user_id in user_data and user_data[user_id].get("from_panel"):
+                    del user_data[user_id]
+                    data = "panel_network_test"
+        else:
             return
     
     if data.startswith("verify_"):
@@ -140,10 +145,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         keyboard = [
-            [InlineKeyboardButton("黑名单管理", callback_data="panel_blacklist_page_1")],
-            [InlineKeyboardButton("所有用户信息", callback_data="panel_stats")],
-            [InlineKeyboardButton("被过滤消息", callback_data="panel_filtered_page_1")],
-            [InlineKeyboardButton("自动回复管理", callback_data="panel_autoreply")],
+            [InlineKeyboardButton("黑名单管理", callback_data="panel_blacklist_page_1"), InlineKeyboardButton("所有用户信息", callback_data="panel_stats")],
+            [InlineKeyboardButton("被过滤消息", callback_data="panel_filtered_page_1"), InlineKeyboardButton("自动回复管理", callback_data="panel_autoreply")],
+            [InlineKeyboardButton("网络测试管理", callback_data="panel_network_test")],
         ]
         
         await query.edit_message_text(
@@ -618,6 +622,287 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown',
             reply_markup=back_keyboard
         )
+    
+    elif data == "panel_network_test":
+        if not await db.is_admin(user_id):
+            await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
+            return
+        
+        from network_test.state import user_data
+        if user_id in user_data:
+            operation = user_data[user_id].get("operation")
+            if operation in ["addserver", "rmserver", "installnexttrace"]:
+                prompt_msg_id = user_data[user_id].get("prompt_message_id")
+                current_msg_id = query.message.message_id
+                if prompt_msg_id and prompt_msg_id != current_msg_id:
+                    try:
+                        await context.bot.delete_message(
+                            chat_id=user_data[user_id].get("chat_id", query.message.chat.id),
+                            message_id=prompt_msg_id
+                        )
+                    except Exception:
+                        pass
+                del user_data[user_id]
+        
+        from network_test.config import SERVERS, AUTHORIZED_USERS, ADMIN_USERS
+        from network_test.utils import check_is_admin
+        
+        is_admin = check_is_admin(user_id, ADMIN_USERS)
+        server_count = len(SERVERS) if SERVERS else 0
+        user_count = len(AUTHORIZED_USERS) if AUTHORIZED_USERS else 0
+        
+        message = (
+            f"网络测试管理\n\n"
+            f"统计信息:\n"
+            f"服务器数量: {server_count}\n"
+            f"授权用户数: {user_count}\n\n"
+            f"请选择要执行的操作："
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("Ping 测试", callback_data="panel_nt_ping"), InlineKeyboardButton("路由追踪", callback_data="panel_nt_nexttrace")],
+        ]
+        
+        if is_admin:
+            keyboard.extend([
+                [InlineKeyboardButton("添加授权用户", callback_data="panel_nt_adduser"), InlineKeyboardButton("移除授权用户", callback_data="panel_nt_rmuser")],
+                [InlineKeyboardButton("添加服务器", callback_data="panel_nt_addserver"), InlineKeyboardButton("移除服务器", callback_data="panel_nt_rmserver")],
+                [InlineKeyboardButton("安装 NextTrace", callback_data="panel_nt_install")],
+            ])
+        
+        keyboard.append([InlineKeyboardButton("返回主面板", callback_data="panel_back")])
+        
+        try:
+            await query.edit_message_text(
+                message,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
+            )
+        except BadRequest as e:
+            if "Message to edit not found" in str(e) or "message is not modified" in str(e).lower():
+                await query.message.reply_text(
+                    message,
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode='Markdown'
+                )
+            else:
+                raise
+    
+    elif data == "panel_nt_ping":
+        if not await db.is_admin(user_id):
+            await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
+            return
+        
+        back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("返回", callback_data="panel_network_test")]])
+        await query.edit_message_text(
+            "Ping 测试\n\n"
+            "使用方法：\n"
+            "`/ping` - 交互式选择服务器\n"
+            "`/ping <目标> [次数]` - 直接指定目标和次数\n\n"
+            "示例：\n"
+            "`/ping 8.8.8.8`\n"
+            "`/ping google.com 10`",
+            parse_mode='Markdown',
+            reply_markup=back_keyboard
+        )
+    
+    elif data == "panel_nt_nexttrace":
+        if not await db.is_admin(user_id):
+            await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
+            return
+        
+        back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("返回", callback_data="panel_network_test")]])
+        await query.edit_message_text(
+            "路由追踪\n\n"
+            "使用方法：\n"
+            "`/nexttrace` - 交互式选择服务器和模式\n"
+            "`/nexttrace <目标>` - 直接指定目标\n\n"
+            "示例：\n"
+            "`/nexttrace 8.8.8.8`\n"
+            "`/nexttrace google.com`",
+            parse_mode='Markdown',
+            reply_markup=back_keyboard
+        )
+    
+    elif data == "panel_nt_adduser":
+        if not await db.is_admin(user_id):
+            await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
+            return
+        
+        from network_test.utils import check_is_admin
+        from network_test.config import ADMIN_USERS
+        
+        if not check_is_admin(user_id, ADMIN_USERS):
+            await query.answer("您不是网络测试模块的管理员。", show_alert=True)
+            return
+        
+        back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("返回", callback_data="panel_network_test")]])
+        await query.edit_message_text(
+            "添加授权用户\n\n"
+            "请使用命令：\n"
+            "`/adduser <user_id>`\n\n"
+            "示例：\n"
+            "`/adduser 123456789`",
+            parse_mode='Markdown',
+            reply_markup=back_keyboard
+        )
+    
+    elif data == "panel_nt_rmuser":
+        if not await db.is_admin(user_id):
+            await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
+            return
+        
+        from network_test.utils import check_is_admin
+        from network_test.config import ADMIN_USERS
+        
+        if not check_is_admin(user_id, ADMIN_USERS):
+            await query.answer("您不是网络测试模块的管理员。", show_alert=True)
+            return
+        
+        back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("返回", callback_data="panel_network_test")]])
+        await query.edit_message_text(
+            "移除授权用户\n\n"
+            "请使用命令：\n"
+            "`/rmuser <user_id>`\n\n"
+            "示例：\n"
+            "`/rmuser 123456789`",
+            parse_mode='Markdown',
+            reply_markup=back_keyboard
+        )
+    
+    elif data == "panel_nt_addserver":
+        if not await db.is_admin(user_id):
+            await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
+            return
+        
+        from network_test.utils import check_is_admin
+        from network_test.config import ADMIN_USERS, SERVERS
+        from network_test.state import user_data
+        from network_test.utils import schedule_delete_message
+        
+        if not check_is_admin(user_id, ADMIN_USERS):
+            await query.answer("您不是网络测试模块的管理员。", show_alert=True)
+            return
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("返回面板", callback_data="panel_network_test")]
+        ])
+        msg = await query.message.reply_text(
+            "欢迎使用交互式添加服务器向导！\n\n"
+            "请按照提示一步一步输入服务器信息。\n"
+            "步骤 1/5: 请输入服务器名称（如：日本 - Acck）：\n\n"
+            "您可以随时输入 /cancel 取消添加流程",
+            reply_markup=keyboard
+        )
+        
+        user_data[user_id] = {
+            "operation": "addserver",
+            "step": 1,
+            "server_data": {},
+            "chat_id": msg.chat_id,
+            "message_id": msg.message_id,
+            "prompt_message_id": msg.message_id,
+            "from_panel": True
+        }
+        
+        try:
+            await query.message.delete()
+        except:
+            pass
+    
+    elif data == "panel_nt_rmserver":
+        if not await db.is_admin(user_id):
+            await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
+            return
+        
+        from network_test.utils import check_is_admin
+        from network_test.config import ADMIN_USERS, SERVERS
+        from network_test.state import user_data
+        
+        if not check_is_admin(user_id, ADMIN_USERS):
+            await query.answer("您不是网络测试模块的管理员。", show_alert=True)
+            return
+        
+        if not SERVERS:
+            back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("返回", callback_data="panel_network_test")]])
+            await query.edit_message_text("当前没有配置任何服务器。", reply_markup=back_keyboard)
+            return
+            
+        keyboard = []
+        for idx, server_info in enumerate(SERVERS):
+            btn = InlineKeyboardButton(
+                f"{server_info['name']} ({server_info['host']}:{server_info['port']})", 
+                callback_data=f"nt_rmserver_{idx}"
+            )
+            keyboard.append([btn])
+        
+        keyboard.append([InlineKeyboardButton("返回面板", callback_data="panel_network_test")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        msg = await query.message.reply_text(
+            "请选择要删除的服务器：",
+            reply_markup=reply_markup
+        )
+        
+        user_data[user_id] = {
+            "operation": "rmserver",
+            "chat_id": msg.chat_id,
+            "message_id": msg.message_id,
+            "prompt_message_id": msg.message_id,
+            "from_panel": True
+        }
+        
+        try:
+            await query.message.delete()
+        except:
+            pass
+    
+    elif data == "panel_nt_install":
+        if not await db.is_admin(user_id):
+            await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
+            return
+        
+        from network_test.utils import check_is_admin
+        from network_test.config import ADMIN_USERS, SERVERS
+        from network_test.state import user_data
+        
+        if not check_is_admin(user_id, ADMIN_USERS):
+            await query.answer("您不是网络测试模块的管理员。", show_alert=True)
+            return
+        
+        if not SERVERS:
+            back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("返回", callback_data="panel_network_test")]])
+            await query.edit_message_text("当前没有配置任何服务器。\n请先使用 /addserver 添加服务器。", reply_markup=back_keyboard)
+            return
+            
+        keyboard = []
+        for idx, server_info in enumerate(SERVERS):
+            btn = InlineKeyboardButton(
+                f"{server_info['name']} ({server_info['host']}:{server_info['port']})", 
+                callback_data=f"nt_installnexttrace_{idx}"
+            )
+            keyboard.append([btn])
+        
+        keyboard.append([InlineKeyboardButton("返回面板", callback_data="panel_network_test")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        msg = await query.message.reply_text(
+            "请选择要安装 NextTrace 的服务器：",
+            reply_markup=reply_markup
+        )
+        
+        user_data[user_id] = {
+            "operation": "installnexttrace",
+            "chat_id": msg.chat_id,
+            "message_id": msg.message_id,
+            "prompt_message_id": msg.message_id,
+            "from_panel": True
+        }
+        
+        try:
+            await query.message.delete()
+        except:
+            pass
     
     elif data.startswith("unblock_"):
         from services.blacklist import verify_unblock_answer

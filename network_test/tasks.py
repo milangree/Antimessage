@@ -19,12 +19,12 @@ async def do_ping_in_background(context, chat_id: int, server_info: dict, target
     done_event.set()
     await spinner_task
 
-    # 检查结果中是否包含重试信息
+    
     retry_info = ""
     if "操作失败，已重试" in ping_raw_result:
-        # 记录到日志
+        
         logging.warning(f"Ping 测试重试后完成: {server_info['name']} -> {target}")
-        retry_info = "<i>⚠️ 注意: 测试过程中遇到连接问题，通过自动重试完成。</i>\n\n"
+        retry_info = "<i>注意: 测试过程中遇到连接问题。</i>\n\n"
     
     final_text = (
         "<b>【Ping 测试结果】</b>\n\n"
@@ -58,18 +58,18 @@ async def do_nexttrace_in_background(context, chat_id: int, server_info: dict, t
     done_event.set()
     await spinner_task
 
-    # 检查结果中是否包含重试信息
+    
     retry_info = ""
     if "操作失败，已重试" in result:
-        # 记录到日志
+        
         logging.warning(f"NextTrace 测试重试后完成: {server_info['name']} -> {target}")
-        retry_info = "<i>⚠️ 注意: 测试过程中遇到连接问题，通过自动重试完成。</i>\n\n"
-        # 移除错误信息，以便格式化结果
+        retry_info = "<i>注意: 测试过程中遇到连接问题。</i>\n\n"
+        
         result = "NextTrace 执行遇到问题，但通过重试完成。"
     
     final_text = format_nexttrace_result(result, server_info['name'], target, ip_type, trace_mode)
     
-    # 在格式化后的结果中添加重试信息
+    
     if retry_info:
         final_text = final_text.replace("<b>【NextTrace 路由追踪结果】</b>\n\n", 
                                         f"<b>【NextTrace 路由追踪结果】</b>\n\n{retry_info}")

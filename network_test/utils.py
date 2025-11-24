@@ -3,14 +3,9 @@ import time
 import logging
 
 def check_authorization(user_id: int, authorized_users: list, admin_users: list = None) -> bool:
-    """检查用户是否有权限使用网络测试功能
-    
-    管理员自动有权限，普通用户需要在授权列表中
-    """
-    # 如果提供了管理员列表，先检查是否是管理员
     if admin_users and user_id in admin_users:
         return True
-    # 检查是否在授权用户列表中
+    
     return user_id in authorized_users
 
 def check_is_admin(user_id: int, admin_users: list) -> bool:
@@ -41,19 +36,6 @@ async def progress_spinner(context, chat_id: int, message_id: int, base_text: st
         i += 1
 
 def retry_operation(func, *args, retries=3, delay=2, **kwargs):
-    """
-    执行一个操作，如果失败则进行重试
-    
-    参数:
-        func: 要执行的函数
-        *args: 函数的位置参数
-        retries: 重试次数，默认为3
-        delay: 重试之间的延迟（秒），默认为2
-        **kwargs: 函数的关键字参数
-        
-    返回:
-        函数的执行结果或异常信息
-    """
     last_exception = None
     
     for attempt in range(retries):
@@ -62,9 +44,9 @@ def retry_operation(func, *args, retries=3, delay=2, **kwargs):
         except Exception as e:
             last_exception = e
             logging.warning(f"操作失败 (尝试 {attempt+1}/{retries}): {str(e)}")
-            if attempt < retries - 1:  # 如果不是最后一次尝试
+            if attempt < retries - 1:  
                 time.sleep(delay)
-                # 每次重试增加延迟时间
+                
                 delay *= 1.5
     
     return f"操作失败，已重试{retries}次: {str(last_exception)}"
