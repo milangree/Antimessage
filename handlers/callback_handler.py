@@ -196,16 +196,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from services.blacklist import get_all_users_keyboard
         
         page = 1
-        message, keyboard = await get_all_users_keyboard(page=page)
-        
-        if keyboard:
-            keyboard_buttons = [list(row) for row in keyboard.inline_keyboard]
-            for i, row in enumerate(keyboard_buttons):
-                for j, button in enumerate(row):
-                    if button.callback_data == "stats_back_to_menu":
-                        keyboard_buttons[i][j] = InlineKeyboardButton("返回主面板", callback_data="panel_back")
-                        break
-            keyboard = InlineKeyboardMarkup(keyboard_buttons)
+        message, keyboard = await get_all_users_keyboard(
+            page=page,
+            callback_prefix="panel_stats_all_users_page_",
+            back_callback="panel_back",
+            back_text="返回主面板"
+        )
         
         if keyboard:
             await query.edit_message_text(
@@ -230,16 +226,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("无效的页码。", show_alert=True)
             return
         
-        message, keyboard = await get_all_users_keyboard(page=page)
-        
-        if keyboard:
-            keyboard_buttons = [list(row) for row in keyboard.inline_keyboard]
-            for i, row in enumerate(keyboard_buttons):
-                for j, button in enumerate(row):
-                    if button.callback_data == "stats_back_to_menu":
-                        keyboard_buttons[i][j] = InlineKeyboardButton("返回主面板", callback_data="panel_back")
-                        break
-            keyboard = InlineKeyboardMarkup(keyboard_buttons)
+        message, keyboard = await get_all_users_keyboard(
+            page=page,
+            callback_prefix="panel_stats_all_users_page_",
+            back_callback="panel_back",
+            back_text="返回主面板"
+        )
         
         if keyboard:
             await query.edit_message_text(
@@ -248,8 +240,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode='Markdown'
             )
         else:
-            back_keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("返回主面板", callback_data="panel_back")]])
-            await query.edit_message_text(text=message, reply_markup=back_keyboard, parse_mode='Markdown')
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("返回主面板", callback_data="panel_back")]])
+            await query.edit_message_text(
+                text=message,
+                reply_markup=keyboard,
+                parse_mode='Markdown'
+            )
     
     elif data.startswith("panel_stats_blacklist_page_"):
         from services.blacklist import get_blacklist_keyboard_detailed
@@ -325,7 +321,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         response = await _format_filtered_messages(messages, page, total_pages)
 
-        keyboard = await _get_filtered_messages_keyboard(page, total_pages)
+        keyboard = await _get_filtered_messages_keyboard(page, total_pages, callback_prefix="panel_filtered_page_")
         
         if keyboard:
             keyboard_buttons = [list(row) for row in keyboard.inline_keyboard]
@@ -948,6 +944,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 keyboard = InlineKeyboardMarkup(keyboard_buttons)
             else:
                 keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("返回主面板", callback_data="panel_back")]])
+            await query.edit_message_text(
+                text=message,
+                reply_markup=keyboard,
+                parse_mode='Markdown'
+            )
         elif is_stats_page:
             message, keyboard = await blacklist.get_blacklist_keyboard_detailed(page=current_page)
             if keyboard:
@@ -958,17 +959,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             keyboard_buttons[i][j] = InlineKeyboardButton("返回主面板", callback_data="panel_back")
                             break
                 keyboard = InlineKeyboardMarkup(keyboard_buttons)
-        else:
-            message, keyboard = await blacklist.get_blacklist_keyboard(page=current_page)
-        
-        if keyboard:
+            else:
+                keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("返回主面板", callback_data="panel_back")]])
             await query.edit_message_text(
                 text=message,
                 reply_markup=keyboard,
                 parse_mode='Markdown'
             )
         else:
-            await query.edit_message_text(text=message)
+            message, keyboard = await blacklist.get_blacklist_keyboard(page=current_page)
+            if keyboard:
+                await query.edit_message_text(
+                    text=message,
+                    reply_markup=keyboard,
+                    parse_mode='Markdown'
+                )
+            else:
+                await query.edit_message_text(text=message)
     
     elif data.startswith("blacklist_page_"):
         from services import blacklist

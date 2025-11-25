@@ -168,7 +168,7 @@ async def get_blacklist_keyboard(page: int = 1, per_page: int = 5):
 
     return message, InlineKeyboardMarkup(keyboard)
 
-async def get_all_users_keyboard(page: int = 1, per_page: int = 5):
+async def get_all_users_keyboard(page: int = 1, per_page: int = 5, callback_prefix: str = "stats_list_all_users_page_", back_callback: str = "stats_back_to_menu", back_text: str = "返回统计菜单"):
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
     
     total_count = await db.get_total_users_count()
@@ -219,18 +219,18 @@ async def get_all_users_keyboard(page: int = 1, per_page: int = 5):
     
     navigation_buttons = []
     if page > 1:
-        navigation_buttons.append(InlineKeyboardButton("上一页", callback_data=f"stats_list_all_users_page_{page - 1}"))
+        navigation_buttons.append(InlineKeyboardButton("上一页", callback_data=f"{callback_prefix}{page - 1}"))
     if page < total_pages:
-        navigation_buttons.append(InlineKeyboardButton("下一页", callback_data=f"stats_list_all_users_page_{page + 1}"))
+        navigation_buttons.append(InlineKeyboardButton("下一页", callback_data=f"{callback_prefix}{page + 1}"))
     
-    back_button = [InlineKeyboardButton("返回统计菜单", callback_data="stats_back_to_menu")]
+    back_button = [InlineKeyboardButton(back_text, callback_data=back_callback)]
     keyboard.append(back_button)
     
     if navigation_buttons:
         keyboard.append(navigation_buttons)
 
     if not keyboard:
-        keyboard = [[InlineKeyboardButton("返回统计菜单", callback_data="stats_back_to_menu")]]
+        keyboard = [[InlineKeyboardButton(back_text, callback_data=back_callback)]]
     
     return message, InlineKeyboardMarkup(keyboard)
 

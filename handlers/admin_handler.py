@@ -43,7 +43,7 @@ async def _format_filtered_messages(messages, page: int, total_pages: int):
     
     return response
 
-async def _get_filtered_messages_keyboard(page: int, total_pages: int):
+async def _get_filtered_messages_keyboard(page: int, total_pages: int, callback_prefix: str = "filtered_page_"):
     keyboard = []
     
     if total_pages <= 1:
@@ -52,10 +52,10 @@ async def _get_filtered_messages_keyboard(page: int, total_pages: int):
     buttons = []
     
     if page > 1:
-        buttons.append(InlineKeyboardButton("上一页", callback_data=f"filtered_page_{page - 1}"))
+        buttons.append(InlineKeyboardButton("上一页", callback_data=f"{callback_prefix}{page - 1}"))
     
     if page < total_pages:
-        buttons.append(InlineKeyboardButton("下一页", callback_data=f"filtered_page_{page + 1}"))
+        buttons.append(InlineKeyboardButton("下一页", callback_data=f"{callback_prefix}{page + 1}"))
     
     if buttons:
         keyboard.append(buttons)
