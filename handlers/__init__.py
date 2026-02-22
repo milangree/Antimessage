@@ -1,25 +1,14 @@
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
-from .command_handler import start, help_command, block, unblock, blacklist, stats, getid, autoreply, panel, exempt
+from .command_handler import start, help_command, block, unblock, blacklist, stats, getid, autoreply, panel, exempt, disable_ai_check
 from .user_handler import handle_message
 from .callback_handler import handle_callback
 from .admin_handler import handle_admin_reply, view_filtered
 from config import config
-from network_test.commands import (
-    ping_command, nexttrace_command, add_user_command, rm_user_command,
-    add_server_command, rm_server_command, install_nexttrace_command
-)
 
 def register_handlers(app: Application):
     app.add_handler(CommandHandler("getid", getid))
     app.add_handler(CommandHandler("start", start, filters=filters.ChatType.PRIVATE))
-    
-    app.add_handler(CommandHandler("ping", ping_command))
-    app.add_handler(CommandHandler("nexttrace", nexttrace_command))
-    app.add_handler(CommandHandler("adduser", add_user_command))
-    app.add_handler(CommandHandler("rmuser", rm_user_command))
-    app.add_handler(CommandHandler("addserver", add_server_command))
-    app.add_handler(CommandHandler("rmserver", rm_server_command))
-    app.add_handler(CommandHandler("install_nexttrace", install_nexttrace_command))
+    app.add_handler(CommandHandler("disable_ai_check", disable_ai_check, filters=filters.ChatType.PRIVATE))
 
     if config.FORUM_GROUP_ID and config.ADMIN_IDS:
         app.add_handler(CommandHandler("help", help_command, filters=filters.ChatType.PRIVATE))

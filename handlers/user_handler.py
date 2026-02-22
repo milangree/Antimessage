@@ -28,11 +28,6 @@ async def _resend_message(update: Update, context: ContextTypes.DEFAULT_TYPE, th
     return await send_message_by_type(context.bot, update.message, config.FORUM_GROUP_ID, thread_id, True)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    from network_test.handlers import handle_message as network_handle_message
-    handled = await network_handle_message(update, context)
-    if handled:
-        return
-    
     user = update.effective_user
     
     is_over_limit, was_warned = await rate_limiter.check_user_rate_limit(user.id)
@@ -139,8 +134,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
     else:
         is_exempted = await db.is_exempted(user.id)
+        ai_check_disabled = await db.is_ai_check_disabled(user.id)
         
-        if not is_exempted:
+        if not is_exempted and not ai_check_disabled:
             analyzing_message = await context.bot.send_message(
                 chat_id=message.chat_id,
                 text="正在通过AI分析内容是否包含垃圾信息...",

@@ -29,16 +29,30 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "这是一个双向聊天机器人。\n\n"
-        "功能列表:\n"
-        "- 发送文本、图片、视频、音频和文档\n"
-        "- 支持Markdown格式\n"
-        "- 首次发送消息需要进行人机验证\n\n"
-        "管理员命令:\n"
-        "- `/block` - 在用户话题输入拉黑用户\n"
-        "- `/blacklist` - 查看黑名单\n"
-        "- `/stats` - 查看统计信息\n"
-        "- `/view_filtered` - 查看被拦截信息及发送者\n"
-        "- `/exempt` - 豁免用户内容审查（临时或永久）\n"
+        "**基础功能:**\n"
+        "• 发送文本、图片、视频、音频和文档\n"
+        "• 支持Markdown格式\n"
+        "• 首次发送消息需要进行人机验证\n\n"
+        "**用户命令（私聊中可用）:**\n"
+        "• `/start` - 开始使用机器人\n"
+        "• `/help` - 显示此帮助信息\n"
+        "• `/getid` - 获取您的用户ID\n"
+        "• `/disable_ai_check on` - 禁用AI内容审查\n"
+        "• `/disable_ai_check off` - 启用AI内容审查\n"
+        "• `/disable_ai_check` - 查看当前状态\n"
+        "• `/rss_add <url>` - 添加RSS订阅\n"
+        "• `/rss_list` - 查看所有订阅\n"
+        "• `/rss_remove <url|ID>` - 移除订阅\n\n"
+        "**管理员命令:**\n"
+        "• `/panel` - 打开管理面板\n"
+        "• `/block` - 在用户话题中拉黑用户\n"
+        "• `/blacklist` - 查看黑名单\n"
+        "• `/unblock <user_id>` - 解除黑名单\n"
+        "• `/stats` - 查看统计信息\n"
+        "• `/view_filtered` - 查看被拦截的消息\n"
+        "• `/exempt <user_id> permanent [reason]` - 永久豁免用户\n"
+        "• `/exempt <user_id> temp <小时数> [reason]` - 临时豁免用户\n"
+        "• `/autoreply` - 管理自动回复功能\n"
     )
     
     await update.message.reply_text(help_text, parse_mode='Markdown')
@@ -153,8 +167,8 @@ async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("黑名单管理", callback_data="panel_blacklist_page_1"), InlineKeyboardButton("所有用户信息", callback_data="panel_stats")],
         [InlineKeyboardButton("被过滤消息", callback_data="panel_filtered_page_1"), InlineKeyboardButton("自动回复管理", callback_data="panel_autoreply")],
-        [InlineKeyboardButton("豁免名单管理", callback_data="panel_exemptions_page_1"), InlineKeyboardButton("网络测试管理", callback_data="panel_network_test")],
-        [InlineKeyboardButton("RSS 功能管理", callback_data="panel_rss"), InlineKeyboardButton("AI 模型设置", callback_data="panel_ai_settings")],
+        [InlineKeyboardButton("豁免名单管理", callback_data="panel_exemptions_page_1"), InlineKeyboardButton("RSS 功能管理", callback_data="panel_rss")],
+        [InlineKeyboardButton("AI 模型设置", callback_data="panel_ai_settings")],
     ]
     
     await update.message.reply_text(
@@ -422,4 +436,38 @@ async def autoreply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "/autoreply edit <ID> <标题> <内容> - 编辑知识条目\n"
             "/autoreply delete <ID> - 删除知识条目\n"
             "/autoreply list - 列出所有知识条目"
+        )
+
+async def disable_ai_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    
+    if update.effective_chat.type != 'private':
+        await update.message.reply_text("该命令仅在私聊中可用。")
+        return
+    
+    is_disabled = await db.is_ai_check_disabled(user_id)
+    
+    if not context.args:
+        status = "已禁用" if is_disabled else "已启用"
+        await update.message.reply_text(
+            f"AI 内容审查状态: {status}\n\n"
+            f"用法:\n"
+            f"/disable_ai_check on - 禁用 AI 内容审查\n"
+            f"/disable_ai_check off - 启用 AI 内容审查"
+        )
+        return
+    
+    action = context.args[0].lower()
+    
+    if action == "on":
+        await db.set_ai_check_disabled(user_id, True)
+        await update.message.reply_text("✓ 已禁用 AI 内容审查。您的消息将直接转发，不再经过 AI 分析。")
+    elif action == "off":
+        await db.set_ai_check_disabled(user_id, False)
+        await update.message.reply_text("✓ 已启用 AI 内容审查。您的消息将进行安全性检查。")
+    else:
+        await update.message.reply_text(
+            "无效的参数。用法:\n"
+            "/disable_ai_check on - 禁用 AI 内容审查\n"
+            "/disable_ai_check off - 启用 AI 内容审查"
         )

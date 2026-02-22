@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.helpers import escape_markdown
 from database import models as db
@@ -47,20 +47,25 @@ async def send_user_info_card(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"**首次联系:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
     )
     
+    keyboard = [[InlineKeyboardButton("封禁用户", callback_data=f"block_user_{user.id}")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
     if photos and photos.total_count > 0:
         await context.bot.send_photo(
             chat_id=config.FORUM_GROUP_ID,
             photo=photos.photos[0][0].file_id,
             caption=info_text,
             message_thread_id=thread_id,
-            parse_mode='Markdown'
+            parse_mode='Markdown',
+            reply_markup=reply_markup
         )
     else:
         await context.bot.send_message(
             chat_id=config.FORUM_GROUP_ID,
             text=info_text,
             message_thread_id=thread_id,
-            parse_mode='Markdown'
+            parse_mode='Markdown',
+            reply_markup=reply_markup
         )
     
     from handlers.user_handler import _resend_message

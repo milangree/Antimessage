@@ -244,6 +244,13 @@ class DatabaseManager:
                 raise e
 
         try:
+            await db.execute('ALTER TABLE users ADD COLUMN ai_check_disabled INTEGER DEFAULT 0')
+            logging.info("数据库迁移：成功为 'users' 表添加 'ai_check_disabled' 列。")
+        except aiosqlite.OperationalError as e:
+            if "duplicate column name" not in str(e):
+                raise e
+
+        try:
             await db.execute(
                 'INSERT OR IGNORE INTO settings (key, value, description) VALUES (?, ?, ?)',
                 ('autoreply_enabled', '0', '是否启用自动回复功能 (1=是, 0=否)')

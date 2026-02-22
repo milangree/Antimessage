@@ -3,8 +3,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10+-blue.svg" alt="Python Version">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
-  <a href="https://github.com/Hamster-Prime/Telegram_Anti-harassment_two-way_chatbot/stargazers">
-    <img src="https://img.shields.io/github/stars/Hamster-Prime/Telegram_Anti-harassment_two-way_chatbot.svg?style=social&label=Star" alt="GitHub Stars">
+  <a href="https://github.com/milangree/Antimessage/stargazers">
+    <img src="https://img.shields.io/github/stars/milangree/Antimessage.svg?style=social&label=Star" alt="GitHub Stars">
   </a>
 </p>
 
@@ -37,7 +37,6 @@
 | 🛡️ **内容审查豁免** | 管理员可以为信任用户设置临时或永久豁免，跳过 AI 内容审查，提升沟通效率。 |
 | 🔐 **权限控制** | 基于 Telegram ID 的多管理员权限系统，确保只有授权人员才能执行管理操作。 |
 | 🤖 **智能自动回复** | 基于知识库的 AI 自动回复功能，在内容审查通过后自动回答用户问题，支持 Markdown 格式，管理员可随时查看自动回复内容。 |
-| 🌐 **网络测试工具** | 集成网络测试功能，支持通过远程服务器进行 Ping 测试和路由追踪（NextTrace），支持 ICMP 和 TCP 模式，方便进行网络诊断。 |
 | 📰 **RSS 订阅推送** | 在私聊中管理 RSS 列表、关键词和自定义页脚，并按需推送最新条目。 |
 
 ---
@@ -57,7 +56,7 @@ cd tg-bot-data
 2. 下载 .env.example 配置文件模板，并重命名为 .env
 
 ```bash
-wget https://raw.githubusercontent.com/Hamster-Prime/Telegram_Anti-harassment_two-way_chatbot/main/.env.example -O .env
+wget https://raw.githubusercontent.com/milangree/Antimessage/main/.env.example -O .env
 ```
 
 3. 编辑 .env 文件，填入您的配置
@@ -401,95 +400,6 @@ python bot.py
 
 ---
 
-### 🌐 网络测试功能
-
-机器人集成了强大的网络测试功能，支持通过远程服务器进行网络诊断。
-
-#### 功能特点
-
-- **Ping 测试**：通过远程服务器执行 Ping 测试，统计丢包率和延迟信息
-- **路由追踪**：使用 NextTrace 工具进行路由追踪，支持 ICMP 和 TCP 模式
-- **多服务器支持**：支持配置多个测试服务器，灵活选择测试节点
-- **交互式操作**：提供命令式和交互式两种使用模式，操作简单直观
-- **权限管理**：管理员自动拥有权限，普通用户需要授权才能使用
-
-<details>
-<summary>📝 更多详细说明 (点击展开)</summary>
-
-#### 使用步骤
-
-1. **配置服务器**（管理员）
-   - 使用 `/addserver` 命令添加测试服务器
-   - 支持交互式向导，逐步输入服务器信息
-   - 或使用命令格式：`/addserver "服务器名称" host port username password`
-
-2. **授权用户**（管理员）
-   - 使用 `/adduser <user_id>` 将用户添加到授权列表
-   - 管理员自动拥有权限，无需手动添加
-
-3. **执行测试**（授权用户）
-   - 使用 `/ping` 命令进行 Ping 测试
-   - 使用 `/nexttrace` 命令进行路由追踪
-   - 支持命令式（直接提供参数）和交互式（按提示操作）两种模式
-
-#### 命令说明
-
-**用户命令：**
-- `/ping [目标] [次数]` - 执行 Ping 测试，例如：`/ping 8.8.8.8 10`
-- `/nexttrace [目标]` - 执行路由追踪，例如：`/nexttrace google.com`
-
-**管理员命令：**
-- `/adduser <user_id>` - 添加授权用户
-- `/rmuser <user_id>` - 删除授权用户
-- `/addserver` - 交互式添加服务器
-- `/addserver "名称" host port username password` - 快速添加服务器
-- `/rmserver` - 删除服务器（显示列表选择）
-- `/rmserver "服务器名称"` - 快速删除指定服务器
-- `/install_nexttrace` - 在服务器上安装 NextTrace 工具
-
-#### 配置说明
-
-网络测试配置保存在 `data/network_test_config.json` 文件中，首次使用时会自动创建。配置文件格式：
-
-```json
-{
-  "ADMIN_USERS": [123456789],
-  "AUTHORIZED_USERS": [123456789, 987654321],
-  "SERVERS": [
-    {
-      "name": "测试服务器",
-      "host": "example.com",
-      "port": 22,
-      "username": "user",
-      "password": "password"
-    }
-  ]
-}
-```
-
-**注意：**
-- 管理员列表会自动从主配置（`.env` 中的 `ADMIN_IDS`）同步
-- 服务器密码以明文形式存储，请妥善保管配置文件
-- 建议定期备份配置文件
-
-#### 工作流程
-
-1. 用户发送 `/ping` 或 `/nexttrace` 命令
-2. 系统检查用户权限（管理员自动通过）
-3. 用户选择测试服务器（如果配置了多个）
-4. 用户输入测试目标（交互式模式）
-5. 系统通过 SSH 连接到服务器执行测试
-6. 返回格式化的测试结果
-
-#### 注意事项
-
-- 首次使用前需要管理员先添加测试服务器
-- 普通用户需要管理员授权才能使用网络测试功能
-- 路由追踪功能需要服务器上安装 NextTrace 工具（可使用 `/install_nexttrace` 自动安装）
-</details>
-
----
-
 ### 📰 RSS 订阅功能
 
 本项目已整合高并发 RSS 机器人，可直接在 Telegram 私聊里管理订阅并按关键词过滤更新。
@@ -547,7 +457,7 @@ python bot.py
   如果这个项目对你有帮助，请给个 Star ⭐️
 </p>
 <p align="center">
-  <a href="https://www.star-history.com/#Hamster-Prime/Telegram_Anti-harassment_two-way_chatbot&type=date&legend=bottom-right">
+  <a href="https://www.star-history.com/#milangree/Antimessage&type=date&legend=bottom-right">
     <img src="https://api.star-history.com/svg?repos=Hamster-Prime/Telegram_Anti-harassment_two-way_chatbot&type=date&legend=bottom-right" alt="Star History Chart">
   </a>
 </p>

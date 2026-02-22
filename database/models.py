@@ -88,16 +88,26 @@ async def get_filtered_messages_count() -> int:
             row = await cursor.fetchone()
             return row[0] if row else 0
 
-async def is_blacklisted(user_id: int):
+async def is_ai_check_disabled(user_id: int) -> bool:
     async with db_manager.get_connection() as db:
         async with db.execute(
-            'SELECT permanent FROM blacklist WHERE user_id = ?',
+            'SELECT ai_check_disabled FROM users WHERE user_id = ?',
             (user_id,)
         ) as cursor:
             row = await cursor.fetchone()
             if row:
-                return True, bool(row[0])
-            return False, False
+                return bool(row[0])
+            return False
+
+async def set_ai_check_disabled(user_id: int, disabled: bool):
+    async with db_manager.get_connection() as db:
+        await db.execute(
+            'UPDATE users SET ai_check_disabled = ? WHERE user_id = ?',
+            (1 if disabled else 0, user_id)
+        )
+        await db.commit()
+
+
 
 async def add_to_blacklist(user_id: int, reason: str, blocked_by: int, permanent: bool = False):
     async with db_manager.get_connection() as db:
