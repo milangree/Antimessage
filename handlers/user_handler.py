@@ -2,7 +2,10 @@ from telegram import Update, constants
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 from database import models as db
-from services.verification import create_verification, is_verification_pending, get_pending_verification_message
+from services.verification import (
+    create_verification, is_verification_pending, get_pending_verification_message,
+    create_image_verification, is_image_verification_pending
+)
 from services.thread_manager import get_or_create_thread
 from services.gemini_service import gemini_service
 from utils.media_converter import sticker_to_image
@@ -14,15 +17,38 @@ async def handle_invalid_thread(update: Update, context: ContextTypes.DEFAULT_TY
     await db.update_user_thread_id(user_id, None)
     await db.update_user_verification(user_id, False)
     context.user_data['pending_update'] = update
-    question, keyboard = await create_verification(user_id)
-    full_message = (
-        "您的话题已被关闭，请重新进行验证以发送消息。\n\n"
-        f"{question}"
-    )
-    await update.message.reply_text(
-        text=full_message,
-        reply_markup=keyboard
-    )
+    
+    # 获取用户的个人验证模式偏好，如果没有则使用全局配置
+    user_verification_mode = await db.get_user_verification_mode(user_id)
+    use_image_verification = config.VERIFICATION_USE_IMAGE
+    
+    if user_verification_mode == "image":
+        use_image_verification = True
+    elif user_verification_mode == "text":
+        use_image_verification = False
+    # else: user_verification_mode is None, use global config
+    
+    if use_image_verification:
+        image_bytes, caption, keyboard = await create_image_verification(user_id)
+        full_message = (
+            "您的话题已被关闭，请重新进行验证以发送消息。\n\n"
+            f"{caption}"
+        )
+        await update.message.reply_photo(
+            photo=image_bytes,
+            caption=full_message,
+            reply_markup=keyboard
+        )
+    else:
+        question, keyboard = await create_verification(user_id)
+        full_message = (
+            "您的话题已被关闭，请重新进行验证以发送消息。\n\n"
+            f"{question}"
+        )
+        await update.message.reply_text(
+            text=full_message,
+            reply_markup=keyboard
+        )
 
 async def _resend_message(update: Update, context: ContextTypes.DEFAULT_TYPE, thread_id: int):
     return await send_message_by_type(context.bot, update.message, config.FORUM_GROUP_ID, thread_id, True)
@@ -100,24 +126,55 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not config.VERIFICATION_ENABLED:
             await db.update_user_verification(user.id, is_verified=True)
         else:
-            has_pending, is_expired = is_verification_pending(user.id)
+            context.user_data['pending_update'] = update
             
-            if has_pending and not is_expired:
-                verification_data = get_pending_verification_message(user.id)
-                if verification_data:
-                    question, keyboard = verification_data
-                    context.user_data['pending_update'] = update
+            # 获取用户的个人验证模式偏好，如果没有则使用全局配置
+            user_verification_mode = await db.get_user_verification_mode(user.id)
+            use_image_verification = config.VERIFICATION_USE_IMAGE
+            
+            if user_verification_mode == "image":
+                use_image_verification = True
+            elif user_verification_mode == "text":
+                use_image_verification = False
+            # else: user_verification_mode is None, use global config
+            
+            if use_image_verification:
+                # 使用图片验证码
+                has_pending, is_expired = is_image_verification_pending(user.id)
+                
+                if has_pending and not is_expired:
+                    # 已有待处理的图片验证，不需要重新生成
                     await update.message.reply_text(
-                        "您还有未完成的人机验证，请先完成验证后再发送消息。\n\n"
-                        f"请完成人机验证: \n\n{question}",
+                        "您还有未完成的人机验证，请先完成验证后再发送消息。"
+                    )
+                    return
+                else:
+                    image_bytes, caption, keyboard = await create_image_verification(user.id)
+                    full_message = f"请完成人机验证:\n\n{caption}"
+                    await update.message.reply_photo(
+                        photo=image_bytes,
+                        caption=full_message,
                         reply_markup=keyboard
                     )
                     return
             else:
-                context.user_data['pending_update'] = update
-                question, keyboard = await create_verification(user.id)
-                await update.message.reply_text(question, reply_markup=keyboard)
-                return
+                # 使用文本验证码
+                has_pending, is_expired = is_verification_pending(user.id)
+                
+                if has_pending and not is_expired:
+                    verification_data = get_pending_verification_message(user.id)
+                    if verification_data:
+                        question, keyboard = verification_data
+                        await update.message.reply_text(
+                            "您还有未完成的人机验证，请先完成验证后再发送消息。\n\n"
+                            f"请完成人机验证: \n\n{question}",
+                            reply_markup=keyboard
+                        )
+                        return
+                else:
+                    question, keyboard = await create_verification(user.id)
+                    await update.message.reply_text(question, reply_markup=keyboard)
+                    return
     
     message = update.message
     image_bytes = None

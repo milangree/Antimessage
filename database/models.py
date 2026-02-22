@@ -107,6 +107,32 @@ async def set_ai_check_disabled(user_id: int, disabled: bool):
         )
         await db.commit()
 
+async def get_user_verification_mode(user_id: int) -> str:
+    """获取用户的验证模式偏好 (text/image/None)"""
+    async with db_manager.get_connection() as db:
+        async with db.execute(
+            'SELECT verification_mode FROM users WHERE user_id = ?',
+            (user_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return row[0]  # 可能是 'text', 'image', 或 None
+            return None
+
+async def set_user_verification_mode(user_id: int, mode: str):
+    """设置用户的验证模式偏好 (text/image/None)"""
+    async with db_manager.get_connection() as db:
+        # 确保用户存在
+        await db.execute(
+            'INSERT OR IGNORE INTO users (user_id, first_name) VALUES (?, ?)',
+            (user_id, f"User_{user_id}")
+        )
+        # 更新验证模式
+        await db.execute(
+            'UPDATE users SET verification_mode = ? WHERE user_id = ?',
+            (mode, user_id)
+        )
+        await db.commit()
 
 
 async def add_to_blacklist(user_id: int, reason: str, blocked_by: int, permanent: bool = False):
@@ -129,6 +155,24 @@ async def remove_from_blacklist(user_id: int):
         )
         await db.execute('DELETE FROM blacklist WHERE user_id = ?', (user_id,))
         await db.commit()
+
+async def is_blacklisted(user_id: int):
+    """
+    检查用户是否被黑名单
+    返回: (is_blocked, is_permanent)
+    - is_blocked: 用户是否被黑名单
+    - is_permanent: 黑名单是否永久
+    """
+    async with db_manager.get_connection() as db:
+        async with db.execute(
+            'SELECT permanent FROM blacklist WHERE user_id = ?',
+            (user_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                is_permanent = bool(row[0])
+                return (True, is_permanent)
+            return (False, False)
 
 async def get_blacklist():
     async with db_manager.get_connection() as db:

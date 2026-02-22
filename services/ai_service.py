@@ -57,6 +57,10 @@ class AIProvider(ABC):
     @abstractmethod
     async def generate_autoreply(self, user_message: str, knowledge_base_content: str) -> str:
         pass
+    
+    @abstractmethod
+    async def generate_image_verification(self) -> dict:
+        pass
         
     @abstractmethod
     async def get_models(self) -> list:
@@ -198,6 +202,78 @@ class GeminiProvider(AIProvider):
             "correct_answer": correct_answer,
             "options": options
         }
+    
+    async def generate_image_verification(self) -> dict:
+        """生成图片验证码（数字）"""
+        from PIL import Image, ImageDraw, ImageFont
+        import random
+        import string
+        
+        # 生成4位随机数字验证码
+        captcha_text = ''.join(random.choices(string.digits, k=4))
+        
+        # 创建图片
+        width, height = 200, 80
+        image = Image.new('RGB', (width, height), color='white')
+        draw = ImageDraw.Draw(image)
+        
+        # 尝试使用系统字体，如果失败则使用默认字体
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 40)
+        except:
+            font = ImageFont.load_default()
+        
+        # 绘制文字（带干扰）
+        # 随机颜色
+        text_color = (random.randint(0, 100), random.randint(0, 100), random.randint(0, 100))
+        
+        # 绘制干扰线
+        for _ in range(3):
+            x1 = random.randint(0, width)
+            y1 = random.randint(0, height)
+            x2 = random.randint(0, width)
+            y2 = random.randint(0, height)
+            draw.line([(x1, y1), (x2, y2)], fill=(200, 200, 200), width=1)
+        
+        # 绘制干扰点
+        for _ in range(50):
+            x = random.randint(0, width)
+            y = random.randint(0, height)
+            draw.point((x, y), fill=(200, 200, 200))
+        
+        # 绘制文字
+        text_bbox = draw.textbbox((0, 0), captcha_text, font=font)
+        text_width = text_bbox[2] - text_bbox[0]
+        text_height = text_bbox[3] - text_bbox[1]
+        x = (width - text_width) // 2
+        y = (height - text_height) // 2
+        draw.text((x, y), captcha_text, fill=text_color, font=font)
+        
+        # 转换为bytes
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format='PNG')
+        img_byte_arr.seek(0)
+        image_bytes = img_byte_arr.getvalue()
+        
+        return {
+            "type": "image",
+            "captcha_text": captcha_text,
+            "image_bytes": image_bytes,
+            "options": self._generate_captcha_options(captcha_text)
+        }
+    
+    def _generate_captcha_options(self, correct_answer: str) -> list:
+        """为验证码生成多个选项"""
+        options = [correct_answer]
+        
+        # 生成3个错误选项（数字）
+        while len(options) < 4:
+            wrong_option = ''.join(random.choices(string.digits, k=4))
+            if wrong_option not in options:
+                options.append(wrong_option)
+        
+        random.shuffle(options)
+        return options
 
     async def generate_autoreply(self, user_message: str, knowledge_base_content: str) -> str:
         model_name = await self._get_model_name('gemini_model_autoreply', 'gemini-2.5-flash')
@@ -385,6 +461,146 @@ class OpenAIProvider(AIProvider):
             "correct_answer": correct_answer,
             "options": options
         }
+    
+    async def generate_image_verification(self) -> dict:
+        """生成图片验证码（数字）"""
+        import string
+        
+        # 生成4位随机数字验证码
+        captcha_text = ''.join(random.choices(string.digits, k=4))
+        
+        # 创建图片
+        width, height = 200, 80
+        image = Image.new('RGB', (width, height), color='white')
+        draw = ImageDraw.Draw(image)
+        
+        # 尝试使用系统字体，如果失败则使用默认字体
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 40)
+        except:
+            font = ImageFont.load_default()
+        
+        # 绘制文字（带干扰）
+        # 随机颜色
+        text_color = (random.randint(0, 100), random.randint(0, 100), random.randint(0, 100))
+        
+        # 绘制干扰线
+        for _ in range(3):
+            x1 = random.randint(0, width)
+            y1 = random.randint(0, height)
+            x2 = random.randint(0, width)
+            y2 = random.randint(0, height)
+            draw.line([(x1, y1), (x2, y2)], fill=(200, 200, 200), width=1)
+        
+        # 绘制干扰点
+        for _ in range(50):
+            x = random.randint(0, width)
+            y = random.randint(0, height)
+            draw.point((x, y), fill=(200, 200, 200))
+        
+        # 绘制文字
+        text_bbox = draw.textbbox((0, 0), captcha_text, font=font)
+        text_width = text_bbox[2] - text_bbox[0]
+        text_height = text_bbox[3] - text_bbox[1]
+        x = (width - text_width) // 2
+        y = (height - text_height) // 2
+        draw.text((x, y), captcha_text, fill=text_color, font=font)
+        
+        # 转换为bytes
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format='PNG')
+        img_byte_arr.seek(0)
+        image_bytes = img_byte_arr.getvalue()
+        
+        return {
+            "type": "image",
+            "captcha_text": captcha_text,
+            "image_bytes": image_bytes,
+            "options": self._generate_captcha_options(captcha_text)
+        }
+    
+    def _generate_captcha_options(self, correct_answer: str) -> list:
+        """为验证码生成多个选项"""
+        options = [correct_answer]
+        
+        # 生成3个错误选项（数字）
+        while len(options) < 4:
+            wrong_option = ''.join(random.choices(string.digits, k=4))
+            if wrong_option not in options:
+                options.append(wrong_option)
+        
+        random.shuffle(options)
+        return options
+    
+    async def generate_image_verification(self) -> dict:
+        """生成图片验证码（数字）"""
+        import string
+        
+        # 生成4位随机数字验证码
+        captcha_text = ''.join(random.choices(string.digits, k=4))
+        
+        # 创建图片
+        width, height = 200, 80
+        image = Image.new('RGB', (width, height), color='white')
+        draw = ImageDraw.Draw(image)
+        
+        # 尝试使用系统字体，如果失败则使用默认字体
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 40)
+        except:
+            font = ImageFont.load_default()
+        
+        # 绘制文字（带干扰）
+        # 随机颜色
+        text_color = (random.randint(0, 100), random.randint(0, 100), random.randint(0, 100))
+        
+        # 绘制干扰线
+        for _ in range(3):
+            x1 = random.randint(0, width)
+            y1 = random.randint(0, height)
+            x2 = random.randint(0, width)
+            y2 = random.randint(0, height)
+            draw.line([(x1, y1), (x2, y2)], fill=(200, 200, 200), width=1)
+        
+        # 绘制干扰点
+        for _ in range(50):
+            x = random.randint(0, width)
+            y = random.randint(0, height)
+            draw.point((x, y), fill=(200, 200, 200))
+        
+        # 绘制文字
+        text_bbox = draw.textbbox((0, 0), captcha_text, font=font)
+        text_width = text_bbox[2] - text_bbox[0]
+        text_height = text_bbox[3] - text_bbox[1]
+        x = (width - text_width) // 2
+        y = (height - text_height) // 2
+        draw.text((x, y), captcha_text, fill=text_color, font=font)
+        
+        # 转换为bytes
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format='PNG')
+        img_byte_arr.seek(0)
+        image_bytes = img_byte_arr.getvalue()
+        
+        return {
+            "type": "image",
+            "captcha_text": captcha_text,
+            "image_bytes": image_bytes,
+            "options": self._generate_captcha_options(captcha_text)
+        }
+    
+    def _generate_captcha_options(self, correct_answer: str) -> list:
+        """为验证码生成多个选项"""
+        options = [correct_answer]
+        
+        # 生成3个错误选项（数字）
+        while len(options) < 4:
+            wrong_option = ''.join(random.choices(string.digits, k=4))
+            if wrong_option not in options:
+                options.append(wrong_option)
+        
+        random.shuffle(options)
+        return options
 
     async def generate_autoreply(self, user_message: str, knowledge_base_content: str) -> str:
         model_name = await self._get_model_name('openai_model_autoreply', 'gpt-4.1')
@@ -507,5 +723,12 @@ class AIService:
              if not config.OPENAI_API_KEY: return []
              return await OpenAIProvider(config.OPENAI_API_KEY, config.OPENAI_BASE_URL).get_models()
         return []
+    
+    async def generate_image_verification(self) -> dict:
+        provider = await self.get_provider()
+        if not provider:
+            # 如果没有提供商，返回默认实现
+            return GeminiProvider(None).generate_image_verification()
+        return await provider.generate_image_verification()
 
 ai_service = AIService()

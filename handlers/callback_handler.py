@@ -3,7 +3,7 @@ import secrets
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
-from services.verification import verify_answer, create_verification
+from services.verification import verify_answer, create_verification, verify_image_answer, create_image_verification
 from services.gemini_service import gemini_service
 from database import models as db
 from utils.media_converter import sticker_to_image
@@ -225,6 +225,22 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     user_id = query.from_user.id
     
+    # 处理验证模式选择
+    if data.startswith("set_verification_"):
+        mode_type = data.split("_")[2]
+        
+        if mode_type == "image":
+            await db.set_user_verification_mode(user_id, "image")
+            await query.edit_message_text("✓ 已设置验证模式为 **图片验证码**\n\n下次人机验证时将使用数字图片验证码。", parse_mode='Markdown')
+        elif mode_type == "text":
+            await db.set_user_verification_mode(user_id, "text")
+            await query.edit_message_text("✓ 已设置验证模式为 **文本验证**\n\n下次人机验证时将使用常识性问答。", parse_mode='Markdown')
+        elif mode_type == "default":
+            await db.set_user_verification_mode(user_id, None)
+            default_mode = "图片验证码" if config.VERIFICATION_USE_IMAGE else "文本验证"
+            await query.edit_message_text(f"✓ 已重置为默认设置\n\n默认验证模式: {default_mode}", parse_mode='Markdown')
+        return
+    
     if data.startswith("block_user_"):
         if not await db.is_admin(user_id):
             await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
@@ -240,6 +256,86 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reason = "通过话题用户卡片按钮"
         response = await block_user(target_user_id, reason, user_id, permanent=True)
         await query.edit_message_text(f"已封禁\n\n{response}")
+        return
+
+    if data.startswith("verify_image_"):
+        answer = data.split("_", 2)[2]
+        success, verify_message, is_banned, new_verification = await verify_image_answer(user_id, answer)
+        
+        if is_banned:
+            await query.edit_message_text(text=verify_message, reply_markup=None)
+            return
+        
+        if new_verification:
+            new_image_bytes, new_message_text, new_keyboard = new_verification
+            try:
+                # 尝试编辑消息
+                await query.edit_message_caption(
+                    caption=f"{verify_message}\n\n{new_message_text}",
+                    reply_markup=new_keyboard
+                )
+                # 编辑消息的照片
+                await query.edit_message_media(
+                    media=InputMediaPhoto(media=new_image_bytes, caption=f"{verify_message}\n\n{new_message_text}"),
+                    reply_markup=new_keyboard
+                )
+            except Exception as e:
+                print(f"编辑消息失败: {e}")
+                # 如果编辑失败，删除旧消息并发送新消息
+                try:
+                    await query.message.delete()
+                except:
+                    pass
+                await query.message.reply_photo(
+                    photo=new_image_bytes,
+                    caption=f"{verify_message}\n\n{new_message_text}",
+                    reply_markup=new_keyboard
+                )
+            return
+        
+        try:
+            await query.edit_message_text(text=verify_message)
+        except:
+            pass
+        
+        if success:
+            if 'pending_update' in context.user_data:
+                pending_update = context.user_data.pop('pending_update')
+                message = pending_update.message
+                image_bytes = None
+
+                if message.photo:
+                    photo_file = await message.photo[-1].get_file()
+                    image_bytes = await photo_file.download_as_bytearray()
+                elif message.sticker and not message.sticker.is_animated and not message.sticker.is_video:
+                    sticker_file = await message.sticker.get_file()
+                    sticker_bytes = await sticker_file.download_as_bytearray()
+                    image_bytes = await sticker_to_image(sticker_bytes)
+
+                should_forward = True
+                if message.video or message.animation:
+                    pass
+                else:
+                    is_exempted = await db.is_exempted(user_id)
+                    ai_check_disabled = await db.is_ai_check_disabled(user_id)
+                    
+                    if not is_exempted and not ai_check_disabled:
+                        analyzing_message = await context.bot.send_message(
+                            chat_id=message.chat_id,
+                            text="正在通过AI分析内容是否包含垃圾信息...",
+                            reply_to_message_id=message.message_id
+                        )
+                        analysis_result = await gemini_service.analyze_message(message, image_bytes)
+                        if analysis_result.get("is_spam"):
+                            should_forward = False
+                            media_type = None
+                            media_file_id = None
+                            if message.photo:
+                                media_type = "photo"
+                                media_file_id = message.photo[-1].file_id
+                            elif message.sticker:
+                                media_type = "sticker"
+                                media_file_id = message.sticker.file_id
         return
 
     if data.startswith("verify_"):

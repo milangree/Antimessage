@@ -37,6 +37,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• `/start` - 开始使用机器人\n"
         "• `/help` - 显示此帮助信息\n"
         "• `/getid` - 获取您的用户ID\n"
+        "• `/verification_mode` - 切换验证模式（文本/图片）\n"
         "• `/disable_ai_check on` - 禁用AI内容审查\n"
         "• `/disable_ai_check off` - 启用AI内容审查\n"
         "• `/disable_ai_check` - 查看当前状态\n"
@@ -470,4 +471,67 @@ async def disable_ai_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "无效的参数。用法:\n"
             "/disable_ai_check on - 禁用 AI 内容审查\n"
             "/disable_ai_check off - 启用 AI 内容审查"
+        )
+async def verification_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """切换用户的验证模式（文本验证或图片验证）"""
+    from config import config
+    
+    user_id = update.effective_user.id
+    
+    if update.effective_chat.type != 'private':
+        await update.message.reply_text("该命令仅在私聊中可用。")
+        return
+    
+    user_mode = await db.get_user_verification_mode(user_id)
+    
+    if not context.args:
+        # 显示当前状态
+        if user_mode:
+            mode_text = "图片验证码" if user_mode == "image" else "文本验证"
+            is_custom = "✓ 已自定义" if user_mode else ""
+        else:
+            mode_text = "图片验证码" if config.VERIFICATION_USE_IMAGE else "文本验证"
+            is_custom = "（默认设置）"
+        
+        keyboard = [
+            [InlineKeyboardButton("🖼️ 图片验证码", callback_data="set_verification_image"),
+             InlineKeyboardButton("📝 文本验证", callback_data="set_verification_text")],
+            [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")]
+        ]
+        
+        message_text = (
+            "**验证模式设置**\n\n"
+            f"当前模式: {mode_text} {is_custom}\n\n"
+            "请选择您的验证方式："
+        )
+        
+        await update.message.reply_text(
+            message_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+        return
+    
+    action = context.args[0].lower()
+    
+    if action == "image":
+        await db.set_user_verification_mode(user_id, "image")
+        await update.message.reply_text("✓ 已设置验证模式为 **图片验证码**\n\n下次人机验证时将使用数字图片验证码。", parse_mode='Markdown')
+    elif action == "text":
+        await db.set_user_verification_mode(user_id, "text")
+        await update.message.reply_text("✓ 已设置验证模式为 **文本验证**\n\n下次人机验证时将使用常识性问答。", parse_mode='Markdown')
+    elif action == "default" or action == "reset":
+        await db.set_user_verification_mode(user_id, None)
+        default_mode = "图片验证码" if config.VERIFICATION_USE_IMAGE else "文本验证"
+        await update.message.reply_text(f"✓ 已重置为默认设置\n\n默认验证模式: {default_mode}", parse_mode='Markdown')
+    else:
+        keyboard = [
+            [InlineKeyboardButton("🖼️ 图片验证码", callback_data="set_verification_image"),
+             InlineKeyboardButton("📝 文本验证", callback_data="set_verification_text")],
+            [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")]
+        ]
+        
+        await update.message.reply_text(
+            "无效的参数。请选择验证模式或使用按钮：",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
