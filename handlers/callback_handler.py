@@ -24,7 +24,7 @@ async def _build_main_panel_keyboard():
         [InlineKeyboardButton("黑名单管理", callback_data="panel_blacklist_page_1"), InlineKeyboardButton("所有用户信息", callback_data="panel_stats")],
         [InlineKeyboardButton("被过滤消息", callback_data="panel_filtered_page_1"), InlineKeyboardButton("自动回复管理", callback_data="panel_autoreply")],
         [InlineKeyboardButton("豁免名单管理", callback_data="panel_exemptions_page_1"), InlineKeyboardButton("RSS 功能管理", callback_data="panel_rss")],
-        [InlineKeyboardButton("AI 模型设置", callback_data="panel_ai_settings")],
+        [InlineKeyboardButton("🎯 验证模式", callback_data="cmd_verification_mode"), InlineKeyboardButton("AI 模型设置", callback_data="panel_ai_settings")],
         [InlineKeyboardButton("🔙 返回管理员菜单", callback_data="menu_admin"), InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")],
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -228,46 +228,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # 处理用户菜单
     if data == "menu_user":
-        is_admin = await db.is_admin(user_id)
-        
-        # 非管理员不允许访问任何菜单
-        if not is_admin:
-            await query.answer("非管理员无法使用菜单系统，请使用命令操作。", show_alert=True)
+        # 非管理员不允许访问菜单
+        if not await db.is_admin(user_id):
+            await query.answer("非管理员无法使用此功能。", show_alert=True)
             return
-        
-        keyboard = [
-            [InlineKeyboardButton("🎯 验证模式", callback_data="cmd_verification_mode")],
-            [InlineKeyboardButton("🤖 AI审查设置", callback_data="cmd_disable_ai_check")],
-            [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start"),
-             InlineKeyboardButton("❌ 关闭", callback_data="menu_close")]
-        ]
-        
-        menu_text = (
-            "**用户菜单**\n\n"
-            "请选择一个操作：\n\n"
-            "_💡 提示：您也可以继续使用相应的 `/` 命令：_\n"
-            "• `/verification_mode` - 切换验证模式\n"
-            "• `/disable_ai_check` - 管理AI审查\n"
-        )
-        await query.edit_message_text(
-            menu_text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
         return
     
     # 处理返回主菜单
     if data == "menu_start":
-        is_admin = await db.is_admin(user_id)
-        
-        # 非管理员不允许访问菜单系统
-        if not is_admin:
-            await query.answer("非管理员无法使用菜单系统，请使用命令操作。", show_alert=True)
+        # 非管理员不允许访问菜单
+        if not await db.is_admin(user_id):
+            await query.answer("非管理员无法使用此功能。", show_alert=True)
             return
         
         keyboard = [
-            [InlineKeyboardButton("📋 用户菜单", callback_data="menu_user"),
-             InlineKeyboardButton("🔧 管理员菜单", callback_data="menu_admin")]
+            [InlineKeyboardButton("🔧 管理员菜单", callback_data="menu_admin")]
         ]
         
         menu_text = (
@@ -283,33 +258,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    # 处理管理员菜单
+    # 处理管理员菜单 - 直接打开管理面板
     if data == "menu_admin":
         if not await db.is_admin(user_id):
             await query.answer("你没有权限访问管理员菜单", show_alert=True)
             return
         
-        keyboard = [
-            [InlineKeyboardButton("📋 黑名单", callback_data="cmd_blacklist"),
-             InlineKeyboardButton("👤 用户信息", callback_data="cmd_stats")],
-            [InlineKeyboardButton("🔒 豁免名单", callback_data="cmd_exemptions"),
-             InlineKeyboardButton("⚙️ 管理面板", callback_data="panel_main")],
-            [InlineKeyboardButton("📝 自动回复", callback_data="cmd_autoreply"),
-             InlineKeyboardButton("📊 被过滤消息", callback_data="cmd_view_filtered")],
-            [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start"),
-             InlineKeyboardButton("❌ 关闭", callback_data="menu_close")]
-        ]
-        admin_menu_text = (
-            "**管理员菜单**\n\n"
-            "请选择一个操作：\n\n"
-            "_💡 提示：您也可以使用 `/panel`, `/blacklist`, `/stats` 等相应的 `/` 命令_"
-        )
-        await query.edit_message_text(
-            admin_menu_text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
-        return
+        # 直接转到管理面板
+        data = "panel_main"
     
     # 关闭菜单
     if data == "menu_close":
@@ -333,7 +289,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"用户名: @{user.username or '无'}"
         )
         
-        keyboard = [[InlineKeyboardButton("🔙 返回用户菜单", callback_data="menu_user")]]
+        keyboard = [[InlineKeyboardButton("🔙 返回管理面板", callback_data="panel_back")]]
         await query.edit_message_text(message_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
         return
     
@@ -359,7 +315,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🖼️ 图片验证码", callback_data="set_verification_image"),
              InlineKeyboardButton("📝 文本验证", callback_data="set_verification_text")],
             [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")],
-            [InlineKeyboardButton("🔙 返回用户菜单", callback_data="menu_user"),
+            [InlineKeyboardButton("🔙 返回管理面板", callback_data="panel_back"),
              InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")]
         ]
         
@@ -376,117 +332,53 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    if data == "cmd_disable_ai_check":
-        is_admin = await db.is_admin(user_id)
-        
-        # 非管理员不允许使用菜单
-        if not is_admin:
-            await query.answer("非管理员无法使用菜单系统，请使用 `/disable_ai_check` 命令。", show_alert=True)
-            return
-        
-        is_disabled = await db.is_ai_check_disabled(user_id)
-        status = "已禁用 ❌" if is_disabled else "已启用 ✓"
-        
-        keyboard = [
-            [InlineKeyboardButton("启用 AI 审查", callback_data="set_ai_check_on"),
-             InlineKeyboardButton("禁用 AI 审查", callback_data="set_ai_check_off")],
-            [InlineKeyboardButton("🔙 返回用户菜单", callback_data="menu_user"),
-             InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")]
-        ]
-        
-        message_text = (
-            f"**AI 内容审查**\n\n"
-            f"当前状态: {status}\n\n"
-            "请选择设置："
-        )
-        
-        await query.edit_message_text(
-            message_text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
-        )
-        return
-    
     # 处理AI审查设置
     if data == "set_ai_check_on":
+        if not await db.is_admin(user_id):
+            await query.answer("你没有权限", show_alert=True)
+            return
         await db.set_ai_check_disabled(user_id, False)
         await query.answer("✓ 已启用 AI 内容审查")
-        await query.edit_message_text("✓ 已启用 AI 内容审查。您的消息将进行安全性检查。")
-        return
+        # 重新显示AI模型设置页面
+        data = "panel_ai_settings"
     
     if data == "set_ai_check_off":
+        if not await db.is_admin(user_id):
+            await query.answer("你没有权限", show_alert=True)
+            return
         await db.set_ai_check_disabled(user_id, True)
         await query.answer("✓ 已禁用 AI 内容审查")
-        await query.edit_message_text("✓ 已禁用 AI 内容审查。您的消息将直接转发。")
-        return
+        # 重新显示AI模型设置页面
+        data = "panel_ai_settings"
     
-    # 处理管理员命令
+    
     if data == "cmd_blacklist":
         if not await db.is_admin(user_id):
             await query.answer("你没有权限", show_alert=True)
             return
-        from services.blacklist import get_blacklist_keyboard
-        message, keyboard = await get_blacklist_keyboard(page=1)
-        if keyboard:
-            await query.edit_message_text(message, reply_markup=keyboard, parse_mode='Markdown')
-        else:
-            await query.edit_message_text(message)
-        return
+        # 转发到管理面板黑名单页面
+        data = "panel_blacklist_page_1"
     
     if data == "cmd_stats":
         if not await db.is_admin(user_id):
             await query.answer("你没有权限", show_alert=True)
             return
-        total_users = await db.get_total_users_count()
-        blocked_users = await db.get_blocked_users_count()
-        filtered_messages = await db.get_filtered_messages_count()
-        
-        stats_text = (
-            "**统计信息**\n\n"
-            f"总用户数: {total_users}\n"
-            f"黑名单用户: {blocked_users}\n"
-            f"被过滤消息: {filtered_messages}"
-        )
-        
-        keyboard = [[InlineKeyboardButton("返回", callback_data="menu_admin")]]
-        await query.edit_message_text(stats_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-        return
+        # 转发到管理面板统计页面
+        data = "panel_stats"
     
     if data == "cmd_view_filtered":
         if not await db.is_admin(user_id):
             await query.answer("你没有权限", show_alert=True)
             return
-        filtered_messages = await db.get_filtered_messages(limit=10)
-        if not filtered_messages:
-            msg = "当前没有被过滤的消息"
-        else:
-            msg = "**最近被过滤的消息**\n\n"
-            for i, fm in enumerate(filtered_messages[:10], 1):
-                msg += f"{i}. 用户 {fm['first_name']} (@{fm['username']})\n"
-                msg += f"   原因: {fm['reason']}\n"
-                msg += f"   内容: {fm['content'][:50]}...\n"
-        
-        keyboard = [[InlineKeyboardButton("返回", callback_data="menu_admin")]]
-        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-        return
+        # 转发到管理面板被过滤消息页面
+        data = "panel_filtered_page_1"
     
     if data == "cmd_autoreply":
         if not await db.is_admin(user_id):
             await query.answer("你没有权限", show_alert=True)
             return
-        is_enabled = await db.get_autoreply_enabled()
-        status = "已启用 ✓" if is_enabled else "已禁用 ❌"
-        
-        keyboard = [
-            [InlineKeyboardButton("启用自动回复", callback_data="set_autoreply_on"),
-             InlineKeyboardButton("禁用自动回复", callback_data="set_autoreply_off")],
-            [InlineKeyboardButton("知识库管理", callback_data="panel_autoreply")],
-            [InlineKeyboardButton("返回", callback_data="menu_admin")]
-        ]
-        
-        msg = f"**自动回复管理**\n\n当前状态: {status}\n\n点击按钮进行管理"
-        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-        return
+        # 转发到管理面板自动回复页面
+        data = "panel_autoreply"
     
     if data == "set_autoreply_on":
         if not await db.is_admin(user_id):
@@ -510,18 +402,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not await db.is_admin(user_id):
             await query.answer("你没有权限", show_alert=True)
             return
-        exemptions = await db.get_all_exemptions()
-        if not exemptions:
-            msg = "当前没有豁免用户"
-        else:
-            msg = "**豁免名单**\n\n"
-            for e in exemptions:
-                expire_info = f"过期: {e.get('expires_at', '永久')}" if not e.get('is_permanent') else "永久豁免"
-                msg += f"• 用户 {e['user_id']}: {expire_info}\n"
-        
-        keyboard = [[InlineKeyboardButton("返回", callback_data="menu_admin")]]
-        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-        return
+        # 转发到管理面板豁免名单页面
+        data = "panel_exemptions_page_1"
     
     # 验证模式选择
     if data.startswith("set_verification_"):
@@ -553,7 +435,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         keyboard = [
             [InlineKeyboardButton("🔙 返回验证模式设置", callback_data="cmd_verification_mode")],
-            [InlineKeyboardButton("📋 用户菜单", callback_data="menu_user")],
             [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")]
         ]
         
@@ -1037,6 +918,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"请选择要配置的项目:"
         )
         
+        is_disabled = await db.is_ai_check_disabled(user_id)
+        ai_status = "已禁用 ❌" if is_disabled else "已启用 ✓"
+        
         keyboard = [
             [
                 InlineKeyboardButton(f"{'✅ ' if current_provider == 'gemini' else ''}使用 Gemini", callback_data="ai_set_provider_gemini"),
@@ -1045,6 +929,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [
                 InlineKeyboardButton("配置 Gemini 模型", callback_data="ai_config_models_gemini"),
                 InlineKeyboardButton("配置 OpenAI 模型", callback_data="ai_config_models_openai")
+            ],
+            [
+                InlineKeyboardButton(f"启用 AI 审查 {'✓' if not is_disabled else ''}", callback_data="set_ai_check_on"),
+                InlineKeyboardButton(f"禁用 AI 审查 {'❌' if is_disabled else ''}", callback_data="set_ai_check_off")
             ],
             [InlineKeyboardButton("返回主面板", callback_data="panel_back")]
         ]
