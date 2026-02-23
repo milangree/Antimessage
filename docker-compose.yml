@@ -7,3 +7,18 @@ services:
      - .env
     volumes:
      - ./data:/app/data
+  cloudflare_web:
+    container_name: cloudflare_web
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    command: ["python", "web/cloudflare_web.py"]
+    depends_on:
+      - TG-Antiharassment-Bot

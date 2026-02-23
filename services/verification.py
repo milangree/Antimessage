@@ -30,6 +30,10 @@ async def create_verification(user_id: int):
         [InlineKeyboardButton(option, callback_data=f"verify_{option}") for option in options]
     ]
     
+    # 添加切换验证方式按钮
+    switch_row = [InlineKeyboardButton("🖼 切换到图片验证", callback_data="switch_verification_image")]
+    keyboard.append(switch_row)
+
     return f"请完成人机验证: \n\n{question}", InlineKeyboardMarkup(keyboard)
 
 async def create_image_verification(user_id: int):
@@ -62,7 +66,9 @@ async def create_image_verification(user_id: int):
         [InlineKeyboardButton(options[2], callback_data=f"verify_image_{options[2]}"),
          InlineKeyboardButton(options[3], callback_data=f"verify_image_{options[3]}")]
     ]
-    
+    # 添加切换到文本验证按钮
+    keyboard.append([InlineKeyboardButton("📝 切换到文本验证", callback_data="switch_verification_text")])
+
     return image_io, "请输入图片中的验证码：", InlineKeyboardMarkup(keyboard)
 
 async def verify_answer(user_id: int, answer: str):
@@ -233,6 +239,9 @@ async def create_cloudflare_verification(user_id: int):
             callback_data=f"cloudflare_verify_{user_id}"
         )]
     ]
+    # 允许用户切换到图片或文本验证
+    keyboard.append([InlineKeyboardButton("🖼 图片验证", callback_data="switch_verification_image")])
+    keyboard.append([InlineKeyboardButton("📝 文本验证", callback_data="switch_verification_text")])
     
     message_text = (
         "🔒 请完成 Cloudflare 安全验证以继续\n\n"

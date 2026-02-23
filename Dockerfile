@@ -15,3 +15,4 @@ COPY . .
 
 # 运行 bot
 CMD ["python", "bot.py"]
+EXPOSE 8080

@@ -821,11 +821,17 @@ class AIService:
              return await OpenAIProvider(config.OPENAI_API_KEY, config.OPENAI_BASE_URL).get_models()
         return []
     
-    async def generate_image_verification(self) -> dict:
+    async def generate_image_verification(self, captcha_type: str = "mixed") -> dict:
         provider = await self.get_provider()
         if not provider:
-            # 如果没有提供商，返回默认实现
-            return await GeminiProvider(None).generate_image_verification()
-        return await provider.generate_image_verification()
+            # 如果没有提供商，使用 Gemini 的实现（支持 captcha_type）
+            return await GeminiProvider(None).generate_image_verification(captcha_type)
+
+        # 一些 provider 实现接受 captcha_type 参数（如 Gemini），
+        # 另一些可能没有该参数（如旧的 OpenAI 实现）。尝试传参，若抛出 TypeError 则回退到不带参数的调用。
+        try:
+            return await provider.generate_image_verification(captcha_type)
+        except TypeError:
+            return await provider.generate_image_verification()
 
 ai_service = AIService()

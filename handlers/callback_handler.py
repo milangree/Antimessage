@@ -1,6 +1,6 @@
 import re
 import secrets
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 from services.verification import verify_answer, create_verification, verify_image_answer, create_image_verification, verify_cloudflare_token
@@ -311,13 +311,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             mode_text = "图片验证码" if config.VERIFICATION_USE_IMAGE else "文本验证"
             is_custom = "（默认设置）"
         
+        from config import config as _cfg
+
         keyboard = [
             [InlineKeyboardButton("🖼️ 图片验证码", callback_data="set_verification_image"),
              InlineKeyboardButton("📝 文本验证", callback_data="set_verification_text")],
-            [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="panel_back"),
-             InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")]
         ]
+
+        # 如果启用了 Cloudflare 验证，显示切换按钮
+        if _cfg.VERIFICATION_USE_CLOUDFLARE:
+            keyboard.append([InlineKeyboardButton("☁️ Cloudflare 验证", callback_data="set_verification_cloudflare")])
+
+        keyboard.append([InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")])
+        keyboard.append([InlineKeyboardButton("🔙 返回管理面板", callback_data="panel_back"),
+             InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")])
         
         message_text = (
             "**验证模式设置**\n\n"
@@ -424,6 +431,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await db.set_user_verification_mode(user_id, "text")
             await query.answer("✓ 已设置为文本验证")
             msg = "✓ 已设置验证模式为 **文本验证**\n\n下次人机验证时将使用常识性问答。"
+        elif mode_type == "cloudflare":
+            await db.set_user_verification_mode(user_id, "cloudflare")
+            await query.answer("✓ 已设置为 Cloudflare 验证")
+            msg = "✓ 已设置验证模式为 **Cloudflare 验证**\n\n下次人机验证时将使用 Cloudflare Turnstile 验证（如果已全局启用）。"
         elif mode_type == "default":
             await db.set_user_verification_mode(user_id, None)
             from config import config
@@ -533,6 +544,31 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
         
         return
+
+        # 切换到文本或图片验证（用户手动切换验证方式）
+        if data == "switch_verification_text":
+            try:
+                question, keyboard = await create_verification(user_id)
+                try:
+                    await query.message.delete()
+                except:
+                    pass
+                await query.message.reply_text(text=question, reply_markup=keyboard)
+            except Exception as e:
+                print(f"切换到文本验证失败: {e}")
+            return
+
+        if data == "switch_verification_image":
+            try:
+                image_io, caption, keyboard = await create_image_verification(user_id)
+                try:
+                    await query.message.delete()
+                except:
+                    pass
+                await query.message.reply_photo(photo=image_io, caption=caption, reply_markup=keyboard)
+            except Exception as e:
+                print(f"切换到图片验证失败: {e}")
+            return
 
     if data.startswith("verify_image_"):
         answer = data.split("_", 2)[2]
