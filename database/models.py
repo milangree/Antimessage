@@ -119,6 +119,34 @@ async def get_user_verification_mode(user_id: int) -> str:
                 return row[0]  # 可能是 'text', 'image', 或 None
             return None
 
+
+async def get_user_verification_image_type(user_id: int) -> str:
+    """获取用户图片验证码类型偏好：'digits', 'letters', 'mixed' 或 None"""
+    async with db_manager.get_connection() as db:
+        async with db.execute(
+            'SELECT verification_image_type FROM users WHERE user_id = ?',
+            (user_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return row[0]
+            return None
+
+
+async def set_user_verification_image_type(user_id: int, image_type: str):
+    """设置用户图片验证码类型偏好。image_type 可为 'digits', 'letters', 'mixed' 或 None"""
+    async with db_manager.get_connection() as db:
+        # 确保用户存在
+        await db.execute(
+            'INSERT OR IGNORE INTO users (user_id, first_name) VALUES (?, ?)',
+            (user_id, f"User_{user_id}")
+        )
+        await db.execute(
+            'UPDATE users SET verification_image_type = ? WHERE user_id = ?',
+            (image_type, user_id)
+        )
+        await db.commit()
+
 async def set_user_verification_mode(user_id: int, mode: str):
     """设置用户的验证模式偏好 (text/image/None)"""
     async with db_manager.get_connection() as db:

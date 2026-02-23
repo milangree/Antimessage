@@ -427,12 +427,19 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mode_key = data[len("set_verification_"):]
 
         if mode_key.startswith("image"):
-            # 保存完整的mode_key，例如: image_digits, image_letters, image_mixed
-            await db.set_user_verification_mode(user_id, mode_key)
+            # mode_key 可能为: image_digits, image_letters, image_mixed, 或 image
+            parts = mode_key.split("_")
+            image_type = None
+            if len(parts) > 1:
+                image_type = parts[1]
+
+            # 保存为通用的 image 模式，同时单独保存图片验证码子类型
+            await db.set_user_verification_mode(user_id, "image")
+            await db.set_user_verification_image_type(user_id, image_type)
             await query.answer("✓ 已设置为图片验证码")
-            if mode_key.endswith("letters"):
+            if image_type == "letters":
                 msg = "✓ 已设置验证模式为 **纯字母图片验证码**\n\n下次人机验证时将使用纯字母验证码。"
-            elif mode_key.endswith("mixed"):
+            elif image_type == "mixed":
                 msg = "✓ 已设置验证模式为 **字母数字混合图片验证码**\n\n下次人机验证时将使用字母数字混合验证码。"
             else:
                 msg = "✓ 已设置验证模式为 **图片验证码（数字）**\n\n下次人机验证时将使用数字图片验证码。"

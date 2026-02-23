@@ -36,7 +36,14 @@ async def create_image_verification(user_id: int):
     """创建图片验证码"""
     import io
     # 优先使用用户自定义的图片验证码类型（如 image_letters, image_mixed, image_digits）
-    captcha_type = config.VERIFICATION_IMAGE_CAPTCHA_TYPE
+        """创建图片验证码，优先使用用户偏好类型，否则使用全局配置"""
+        # 优先使用用户设置的图片验证码类型（digits/letters/mixed），否则使用全局配置
+        try:
+            user_pref = await db.get_user_verification_image_type(user_id)
+        except Exception:
+            user_pref = None
+
+        captcha_type = user_pref or config.VERIFICATION_IMAGE_CAPTCHA_TYPE
     try:
         user_mode = await db.get_user_verification_mode(user_id)
         if user_mode and user_mode.startswith("image"):
