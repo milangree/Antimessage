@@ -32,6 +32,7 @@ async def create_verification(user_id: int):
 
 async def create_image_verification(user_id: int):
     """创建图片验证码"""
+    import io
     image_verification = await gemini_service.generate_image_verification()
     
     captcha_text = image_verification['captcha_text']
@@ -47,6 +48,10 @@ async def create_image_verification(user_id: int):
         'created_at': time.time()
     }
     
+    # 将bytes转换为BytesIO对象供Telegram使用
+    image_io = io.BytesIO(image_bytes)
+    image_io.seek(0)
+    
     # 生成按钮（2行2列）
     keyboard = [
         [InlineKeyboardButton(options[0], callback_data=f"verify_image_{options[0]}"),
@@ -55,7 +60,7 @@ async def create_image_verification(user_id: int):
          InlineKeyboardButton(options[3], callback_data=f"verify_image_{options[3]}")]
     ]
     
-    return image_bytes, "请输入图片中的验证码：", InlineKeyboardMarkup(keyboard)
+    return image_io, "请输入图片中的验证码：", InlineKeyboardMarkup(keyboard)
 
 async def verify_answer(user_id: int, answer: str):
     if user_id not in pending_verifications:
@@ -146,6 +151,10 @@ async def verify_image_answer(user_id: int, answer: str):
         'created_at': time.time()
     }
     
+    # 将bytes转换为BytesIO对象供Telegram使用
+    image_io = io.BytesIO(new_image_bytes)
+    image_io.seek(0)
+    
     # 返回新的图片验证码
     keyboard = [
         [InlineKeyboardButton(new_options[0], callback_data=f"verify_image_{new_options[0]}"),
@@ -155,7 +164,7 @@ async def verify_image_answer(user_id: int, answer: str):
     ]
     
     message_text = f"答案错误，还有 {config.MAX_VERIFICATION_ATTEMPTS - verification['attempts']} 次机会。"
-    return False, message_text, False, (new_image_bytes, "请输入图片中的验证码：", InlineKeyboardMarkup(keyboard))
+    return False, message_text, False, (image_io, "请输入图片中的验证码：", InlineKeyboardMarkup(keyboard))
 
 def is_verification_pending(user_id: int) -> tuple[bool, bool]:
     if user_id not in pending_verifications:

@@ -593,12 +593,38 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await db.is_admin(user_id):
         return
     
+    # 支持在话题中通过回复消息来获取用户ID
+    if update.message.is_topic_message and update.message.reply_to_message:
+        # 获取被回复消息的发送者ID
+        reply_to_user_id = update.message.reply_to_message.from_user.id
+        reply_to_user = await db.get_user(reply_to_user_id)
+        
+        if not reply_to_user:
+            await update.message.reply_text("未找到该用户。")
+            return
+        
+        reason = " ".join(context.args) if context.args else "管理员手动封禁"
+        
+        await db.add_to_blacklist(
+            reply_to_user_id,
+            reason=reason,
+            blocked_by=user_id,
+            permanent=True
+        )
+        
+        await update.message.reply_text(
+            f"✓ 已封禁用户 {reply_to_user.get('first_name', '用户')} (ID: {reply_to_user_id})\n"
+            f"原因: {reason}"
+        )
+        return
+    
     if not context.args or len(context.args) < 1:
         await update.message.reply_text(
             "用法: /ban <用户名或用户ID> [原因]\n\n"
             "示例:\n"
             "/ban @username 广告\n"
-            "/ban 123456789 不文明发言"
+            "/ban 123456789 不文明发言\n\n"
+            "如在话题中回复消息，可直接: /ban [原因]"
         )
         return
     
@@ -646,12 +672,31 @@ async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await db.is_admin(user_id):
         return
     
+    # 支持在话题中通过回复消息来获取用户ID
+    if update.message.is_topic_message and update.message.reply_to_message:
+        # 获取被回复消息的发送者ID
+        reply_to_user_id = update.message.reply_to_message.from_user.id
+        reply_to_user = await db.get_user(reply_to_user_id)
+        
+        if not reply_to_user:
+            await update.message.reply_text("未找到该用户。")
+            return
+        
+        await db.remove_from_blacklist(reply_to_user_id)
+        await db.set_user_blacklist_strikes(reply_to_user_id, 0)
+        
+        await update.message.reply_text(
+            f"✓ 已解封用户 {reply_to_user.get('first_name', '用户')} (ID: {reply_to_user_id})"
+        )
+        return
+    
     if not context.args or len(context.args) < 1:
         await update.message.reply_text(
             "用法: /unban <用户名或用户ID>\n\n"
             "示例:\n"
             "/unban @username\n"
-            "/unban 123456789"
+            "/unban 123456789\n\n"
+            "如在话题中回复消息，可直接: /unban"
         )
         return
     
