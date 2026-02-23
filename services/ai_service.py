@@ -5,6 +5,7 @@ import json
 import re
 import random
 import io
+import string
 from PIL import Image
 from config import config
 from database.db_manager import db_manager
