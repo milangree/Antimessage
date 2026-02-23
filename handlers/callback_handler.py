@@ -314,8 +314,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from config import config as _cfg
 
         keyboard = [
-            [InlineKeyboardButton("🖼️ 图片验证码", callback_data="set_verification_image"),
+            [InlineKeyboardButton("🖼️ 图片（数字）", callback_data="set_verification_image_digits"),
              InlineKeyboardButton("📝 文本验证", callback_data="set_verification_text")],
+            [InlineKeyboardButton("🔤 纯字母图片验证码", callback_data="set_verification_image_letters"),
+             InlineKeyboardButton("🔠 字母数字混合图片验证码", callback_data="set_verification_image_mixed")],
         ]
 
         # 如果启用了 Cloudflare 验证，显示切换按钮
@@ -421,21 +423,28 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("非管理员无法使用菜单系统，请使用 `/verification_mode` 命令。", show_alert=True)
             return
         
-        mode_type = data.split("_")[2]
-        
-        if mode_type == "image":
-            await db.set_user_verification_mode(user_id, "image")
+        # 支持更细化的图片验证码类型：digits, letters, mixed
+        mode_key = data[len("set_verification_"):]
+
+        if mode_key.startswith("image"):
+            # 保存完整的mode_key，例如: image_digits, image_letters, image_mixed
+            await db.set_user_verification_mode(user_id, mode_key)
             await query.answer("✓ 已设置为图片验证码")
-            msg = "✓ 已设置验证模式为 **图片验证码**\n\n下次人机验证时将使用数字图片验证码。"
-        elif mode_type == "text":
+            if mode_key.endswith("letters"):
+                msg = "✓ 已设置验证模式为 **纯字母图片验证码**\n\n下次人机验证时将使用纯字母验证码。"
+            elif mode_key.endswith("mixed"):
+                msg = "✓ 已设置验证模式为 **字母数字混合图片验证码**\n\n下次人机验证时将使用字母数字混合验证码。"
+            else:
+                msg = "✓ 已设置验证模式为 **图片验证码（数字）**\n\n下次人机验证时将使用数字图片验证码。"
+        elif mode_key == "text":
             await db.set_user_verification_mode(user_id, "text")
             await query.answer("✓ 已设置为文本验证")
             msg = "✓ 已设置验证模式为 **文本验证**\n\n下次人机验证时将使用常识性问答。"
-        elif mode_type == "cloudflare":
+        elif mode_key == "cloudflare":
             await db.set_user_verification_mode(user_id, "cloudflare")
             await query.answer("✓ 已设置为 Cloudflare 验证")
             msg = "✓ 已设置验证模式为 **Cloudflare 验证**\n\n下次人机验证时将使用 Cloudflare Turnstile 验证（如果已全局启用）。"
-        elif mode_type == "default":
+        elif mode_key == "default":
             await db.set_user_verification_mode(user_id, None)
             from config import config
             default_mode = "图片验证码" if config.VERIFICATION_USE_IMAGE else "文本验证"
@@ -511,6 +520,31 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("该用户已被永久封禁", show_alert=True)
         return
 
+    # 允许用户/Cloudflare 验证界面切换到文本/图片验证的回调（全局处理）
+    if data == "switch_verification_text":
+        try:
+            question, keyboard = await create_verification(user_id)
+            try:
+                await query.message.delete()
+            except:
+                pass
+            await query.message.reply_text(text=question, reply_markup=keyboard)
+        except Exception as e:
+            print(f"切换到文本验证失败: {e}")
+        return
+
+    if data == "switch_verification_image":
+        try:
+            image_io, caption, keyboard = await create_image_verification(user_id)
+            try:
+                await query.message.delete()
+            except:
+                pass
+            await query.message.reply_photo(photo=image_io, caption=caption, reply_markup=keyboard)
+        except Exception as e:
+            print(f"切换到图片验证失败: {e}")
+        return
+
     if data.startswith("cloudflare_verify_"):
         # Cloudflare 验证处理
         user_id_str = data.split("_", 2)[2]
@@ -545,55 +579,27 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         return
 
-        # 切换到文本或图片验证（用户手动切换验证方式）
-        if data == "switch_verification_text":
-            try:
-                question, keyboard = await create_verification(user_id)
-                try:
-                    await query.message.delete()
-                except:
-                    pass
-                await query.message.reply_text(text=question, reply_markup=keyboard)
-            except Exception as e:
-                print(f"切换到文本验证失败: {e}")
-            return
-
-        if data == "switch_verification_image":
-            try:
-                image_io, caption, keyboard = await create_image_verification(user_id)
-                try:
-                    await query.message.delete()
-                except:
-                    pass
-                await query.message.reply_photo(photo=image_io, caption=caption, reply_markup=keyboard)
-            except Exception as e:
-                print(f"切换到图片验证失败: {e}")
-            return
-
     if data.startswith("verify_image_"):
         answer = data.split("_", 2)[2]
         success, verify_message, is_banned, new_verification = await verify_image_answer(user_id, answer)
-        
+
         if is_banned:
             await query.edit_message_text(text=verify_message, reply_markup=None)
             return
-        
+
         if new_verification:
             new_image_bytes, new_message_text, new_keyboard = new_verification
             try:
-                # 尝试编辑消息
                 await query.edit_message_caption(
                     caption=f"{verify_message}\n\n{new_message_text}",
                     reply_markup=new_keyboard
                 )
-                # 编辑消息的照片
                 await query.edit_message_media(
                     media=InputMediaPhoto(media=new_image_bytes, caption=f"{verify_message}\n\n{new_message_text}"),
                     reply_markup=new_keyboard
                 )
             except Exception as e:
                 print(f"编辑消息失败: {e}")
-                # 如果编辑失败，删除旧消息并发送新消息
                 try:
                     await query.message.delete()
                 except:
@@ -604,19 +610,18 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=new_keyboard
                 )
             return
-        
+
         try:
             await query.edit_message_text(text=verify_message)
         except:
             pass
-        
+
         if success:
-            # 删除验证提示消息
             try:
                 await query.message.delete()
             except:
                 pass
-            
+
             if 'pending_update' in context.user_data:
                 pending_update = context.user_data.pop('pending_update')
                 message = pending_update.message
@@ -636,7 +641,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     is_exempted = await db.is_exempted(user_id)
                     ai_check_disabled = await db.is_ai_check_disabled(user_id)
-                    
+
                     if not is_exempted and not ai_check_disabled:
                         analyzing_message = await context.bot.send_message(
                             chat_id=message.chat_id,
@@ -654,7 +659,51 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             elif message.sticker:
                                 media_type = "sticker"
                                 media_file_id = message.sticker.file_id
-        return
+
+                            await db.save_filtered_message(
+                                user_id=user_id,
+                                message_id=message.message_id,
+                                content=message.text or message.caption,
+                                reason=analysis_result.get("reason"),
+                                media_type=media_type,
+                                media_file_id=media_file_id,
+                            )
+                            reason = analysis_result.get("reason", "未提供原因")
+                            await analyzing_message.edit_text(f"您的消息已被系统拦截，因此未被转发\n\n原因：{reason}")
+                        else:
+                            await analyzing_message.delete()
+
+                if should_forward:
+                    thread_id, is_new = await get_or_create_thread(pending_update, context)
+                    if not thread_id:
+                        await pending_update.message.reply_text("无法创建或找到您的话题，请联系管理员。")
+                        return
+
+                    try:
+                        if not is_new:
+                            await _resend_message(pending_update, context, thread_id)
+                    except BadRequest as e:
+                        if "Message thread not found" in e.message:
+                            await db.update_user_thread_id(user_id, None)
+                            await db.update_user_verification(user_id, False)
+
+                            context.user_data['pending_update'] = pending_update
+                            question, keyboard = await create_verification(user_id)
+
+                            full_message = (
+                                "您的话题已被关闭，请重新进行验证以发送消息。\n\n"
+                                f"{question}"
+                            )
+
+                            await pending_update.message.reply_text(
+                                text=full_message,
+                                reply_markup=keyboard
+                            )
+                        else:
+                            print(f"发送消息时发生未知错误: {e}")
+                            await pending_update.message.reply_text("发送消息时发生未知错误，请稍后再试。")
+            else:
+                await query.message.reply_text("现在您可以发送消息了！")
 
     if data.startswith("verify_"):
         answer = data.split("_", 1)[1]

@@ -30,16 +30,26 @@ async def create_verification(user_id: int):
         [InlineKeyboardButton(option, callback_data=f"verify_{option}") for option in options]
     ]
     
-    # 添加切换验证方式按钮
-    switch_row = [InlineKeyboardButton("🖼 切换到图片验证", callback_data="switch_verification_image")]
-    keyboard.append(switch_row)
-
     return f"请完成人机验证: \n\n{question}", InlineKeyboardMarkup(keyboard)
 
 async def create_image_verification(user_id: int):
     """创建图片验证码"""
     import io
+    # 优先使用用户自定义的图片验证码类型（如 image_letters, image_mixed, image_digits）
     captcha_type = config.VERIFICATION_IMAGE_CAPTCHA_TYPE
+    try:
+        user_mode = await db.get_user_verification_mode(user_id)
+        if user_mode and user_mode.startswith("image"):
+            if user_mode.endswith("letters"):
+                captcha_type = "letters"
+            elif user_mode.endswith("mixed"):
+                captcha_type = "mixed"
+            else:
+                captcha_type = "digits"
+    except Exception:
+        # 如果查询失败，回退到全局配置
+        pass
+
     image_verification = await gemini_service.generate_image_verification(captcha_type)
     
     captcha_text = image_verification['captcha_text']
@@ -66,8 +76,7 @@ async def create_image_verification(user_id: int):
         [InlineKeyboardButton(options[2], callback_data=f"verify_image_{options[2]}"),
          InlineKeyboardButton(options[3], callback_data=f"verify_image_{options[3]}")]
     ]
-    # 添加切换到文本验证按钮
-    keyboard.append([InlineKeyboardButton("📝 切换到文本验证", callback_data="switch_verification_text")])
+    
 
     return image_io, "请输入图片中的验证码：", InlineKeyboardMarkup(keyboard)
 
@@ -146,8 +155,20 @@ async def verify_image_answer(user_id: int, answer: str):
         )
         return False, message, True, None
     
-    # 生成新的图片验证码
+    # 生成新的图片验证码，优先使用用户自定义类型
     captcha_type = config.VERIFICATION_IMAGE_CAPTCHA_TYPE
+    try:
+        user_mode = await db.get_user_verification_mode(user_id)
+        if user_mode and user_mode.startswith("image"):
+            if user_mode.endswith("letters"):
+                captcha_type = "letters"
+            elif user_mode.endswith("mixed"):
+                captcha_type = "mixed"
+            else:
+                captcha_type = "digits"
+    except Exception:
+        pass
+
     image_verification = await gemini_service.generate_image_verification(captcha_type)
     
     new_image_bytes = image_verification['image_bytes']

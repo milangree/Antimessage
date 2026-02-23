@@ -539,8 +539,10 @@ async def verification_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
         is_admin = await db.is_admin(user_id)
         
         keyboard = [
-            [InlineKeyboardButton("🖼️ 图片验证码", callback_data="set_verification_image"),
+            [InlineKeyboardButton("🖼️ 图片（数字）", callback_data="set_verification_image_digits"),
              InlineKeyboardButton("📝 文本验证", callback_data="set_verification_text")],
+            [InlineKeyboardButton("🔤 纯字母图片验证码", callback_data="set_verification_image_letters"),
+             InlineKeyboardButton("🔠 字母数字混合图片验证码", callback_data="set_verification_image_mixed")],
             [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")]
         ]
         
@@ -564,8 +566,14 @@ async def verification_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     action = context.args[0].lower()
     
     if action == "image":
-        await db.set_user_verification_mode(user_id, "image")
-        await update.message.reply_text("✓ 已设置验证模式为 **图片验证码**\n\n下次人机验证时将使用数字图片验证码。", parse_mode='Markdown')
+        await db.set_user_verification_mode(user_id, "image_digits")
+        await update.message.reply_text("✓ 已设置验证模式为 **图片验证码（数字）**\n\n下次人机验证时将使用数字图片验证码。", parse_mode='Markdown')
+    elif action == "image_letters":
+        await db.set_user_verification_mode(user_id, "image_letters")
+        await update.message.reply_text("✓ 已设置验证模式为 **纯字母图片验证码**\n\n下次人机验证时将使用纯字母验证码。", parse_mode='Markdown')
+    elif action == "image_mixed":
+        await db.set_user_verification_mode(user_id, "image_mixed")
+        await update.message.reply_text("✓ 已设置验证模式为 **字母数字混合图片验证码**\n\n下次人机验证时将使用字母数字混合验证码。", parse_mode='Markdown')
     elif action == "text":
         await db.set_user_verification_mode(user_id, "text")
         await update.message.reply_text("✓ 已设置验证模式为 **文本验证**\n\n下次人机验证时将使用常识性问答。", parse_mode='Markdown')
@@ -575,8 +583,10 @@ async def verification_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✓ 已重置为默认设置\n\n默认验证模式: {default_mode}", parse_mode='Markdown')
     else:
         keyboard = [
-            [InlineKeyboardButton("🖼️ 图片验证码", callback_data="set_verification_image"),
+            [InlineKeyboardButton("🖼️ 图片（数字）", callback_data="set_verification_image_digits"),
              InlineKeyboardButton("📝 文本验证", callback_data="set_verification_text")],
+            [InlineKeyboardButton("🔤 纯字母图片验证码", callback_data="set_verification_image_letters"),
+             InlineKeyboardButton("🔠 字母数字混合图片验证码", callback_data="set_verification_image_mixed")],
             [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")],
             [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")]
         ]
