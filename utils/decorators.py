@@ -9,10 +9,10 @@ def admin_only(func):
     async def wrapped(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
         user = update.effective_user
         if not config.ADMIN_IDS:
-            await update.message.reply_text("抱歉，管理员功能尚未启用。")
+            # 无声忽略
             return
         if not await is_admin(user.id):
-            await update.message.reply_text("抱歉，此功能仅限管理员使用。")
+            # 非管理员无声忽略，不显示任何消息
             return
         return await func(update, context, *args, **kwargs)
     return wrapped

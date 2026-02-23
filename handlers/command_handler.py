@@ -20,40 +20,35 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     is_admin = await db.is_admin(user_id)
     
-    if is_admin:
-        # 管理员 - 显示完整的内联按钮菜单
-        welcome_message = (
-            f"你好, {user.first_name}! 👋\n\n"
-            "欢迎使用双向聊天机器人管理员面板。\n\n"
-            "请选择操作："
-        )
-        
-        keyboard = [
-            [InlineKeyboardButton("📋 用户菜单", callback_data="menu_user"),
-             InlineKeyboardButton("🔧 管理员菜单", callback_data="menu_admin")]
-        ]
-        
-        await update.message.reply_text(
-            welcome_message,
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-    else:
-        # 普通用户 - 不显示内联按钮，只显示基本信息和命令提示
-        welcome_message = (
-            f"你好, {user.first_name}! 👋\n\n"
-            "欢迎使用双向聊天机器人。\n"
-            "你可以直接在这里发送消息，管理员会尽快回复你。\n\n"
-            "**常用命令：**\n"
-            "• `/getid` - 获取你的用户ID\n"
-            "• `/verification_mode` - 切换验证模式\n"
-            "• `/disable_ai_check` - 管理AI内容审查\n"
-            "• `/help` - 显示完整帮助信息\n\n"
-            "如有问题，请使用上方命令获取帮助。"
-        )
-        
-        await update.message.reply_text(welcome_message, parse_mode='Markdown')
+    if not is_admin:
+        # 普通用户 - 无声忽略，不显示任何内容
+        return
+    
+    # 管理员 - 显示完整的内联按钮菜单
+    welcome_message = (
+        f"你好, {user.first_name}! 👋\n\n"
+        "欢迎使用双向聊天机器人管理员面板。\n\n"
+        "请选择操作："
+    )
+    
+    keyboard = [
+        [InlineKeyboardButton("📋 用户菜单", callback_data="menu_user"),
+         InlineKeyboardButton("🔧 管理员菜单", callback_data="menu_admin")]
+    ]
+    
+    await update.message.reply_text(
+        welcome_message,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """帮助命令 - 仅管理员可用"""
+    user_id = update.effective_user.id
+    
+    # 非管理员无声忽略
+    if not await db.is_admin(user_id):
+        return
+    
     help_text = (
         "这是一个双向聊天机器人。\n\n"
         "**基础功能:**\n"
@@ -160,8 +155,14 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def getid(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_type = update.effective_chat.type
+    """获取用户ID - 仅管理员可用"""
     user_id = update.effective_user.id
+    
+    # 非管理员无声忽略
+    if not await db.is_admin(user_id):
+        return
+    
+    chat_type = update.effective_chat.type
 
     if chat_type == 'private':
         message = f"用户ID: `{user_id}`"
@@ -466,7 +467,12 @@ async def autoreply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def disable_ai_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """管理AI审查设置 - 仅管理员可用"""
     user_id = update.effective_user.id
+    
+    # 非管理员无声忽略
+    if not await db.is_admin(user_id):
+        return
     
     if update.effective_chat.type != 'private':
         await update.message.reply_text("该命令仅在私聊中可用。")
@@ -499,10 +505,14 @@ async def disable_ai_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "/disable_ai_check off - 启用 AI 内容审查"
         )
 async def verification_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """切换用户的验证模式（文本验证或图片验证）"""
+    """切换验证模式 - 仅管理员可用"""
     from config import config
     
     user_id = update.effective_user.id
+    
+    # 非管理员无声忽略
+    if not await db.is_admin(user_id):
+        return
     
     if update.effective_chat.type != 'private':
         await update.message.reply_text("该命令仅在私聊中可用。")
@@ -519,12 +529,18 @@ async def verification_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
             mode_text = "图片验证码" if config.VERIFICATION_USE_IMAGE else "文本验证"
             is_custom = "（默认设置）"
         
+        # 检查用户是否为管理员
+        is_admin = await db.is_admin(user_id)
+        
         keyboard = [
             [InlineKeyboardButton("🖼️ 图片验证码", callback_data="set_verification_image"),
              InlineKeyboardButton("📝 文本验证", callback_data="set_verification_text")],
-            [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")],
-            [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")]
+            [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")]
         ]
+        
+        # 只有管理员才显示返回菜单的按钮
+        if is_admin:
+            keyboard.append([InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")])
         
         message_text = (
             "**验证模式设置**\n\n"

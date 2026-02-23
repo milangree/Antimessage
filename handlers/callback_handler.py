@@ -25,6 +25,7 @@ async def _build_main_panel_keyboard():
         [InlineKeyboardButton("被过滤消息", callback_data="panel_filtered_page_1"), InlineKeyboardButton("自动回复管理", callback_data="panel_autoreply")],
         [InlineKeyboardButton("豁免名单管理", callback_data="panel_exemptions_page_1"), InlineKeyboardButton("RSS 功能管理", callback_data="panel_rss")],
         [InlineKeyboardButton("AI 模型设置", callback_data="panel_ai_settings")],
+        [InlineKeyboardButton("🔙 返回管理员菜单", callback_data="menu_admin"), InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")],
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -229,23 +230,26 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "menu_user":
         is_admin = await db.is_admin(user_id)
         
+        # 非管理员不允许访问任何菜单
+        if not is_admin:
+            await query.answer("非管理员无法使用菜单系统，请使用命令操作。", show_alert=True)
+            return
+        
         keyboard = [
             [InlineKeyboardButton("ℹ️ 获取用户ID", callback_data="cmd_getid"),
              InlineKeyboardButton("🎯 验证模式", callback_data="cmd_verification_mode")],
-            [InlineKeyboardButton("🤖 AI审查设置", callback_data="cmd_disable_ai_check")]
+            [InlineKeyboardButton("🤖 AI审查设置", callback_data="cmd_disable_ai_check")],
+            [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start"),
+             InlineKeyboardButton("❌ 关闭", callback_data="menu_close")]
         ]
-        
-        # 只有管理员才显示返回主菜单的按钮
-        if is_admin:
-            keyboard.append([InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start"),
-                           InlineKeyboardButton("❌ 关闭", callback_data="menu_close")])
-        else:
-            keyboard.append([InlineKeyboardButton("❌ 关闭", callback_data="menu_close")])
         
         menu_text = (
             "**用户菜单**\n\n"
             "请选择一个操作：\n\n"
-            "_💡 提示：您也可以继续使用相应的 `/` 命令，例如 `/getid`, `/verification_mode` 等_"
+            "_💡 提示：您也可以继续使用相应的 `/` 命令：_\n"
+            "• `/getid` - 获取用户ID\n"
+            "• `/verification_mode` - 切换验证模式\n"
+            "• `/disable_ai_check` - 管理AI审查\n"
         )
         await query.edit_message_text(
             menu_text,
@@ -257,15 +261,16 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 处理返回主菜单
     if data == "menu_start":
         is_admin = await db.is_admin(user_id)
-        if is_admin:
-            keyboard = [
-                [InlineKeyboardButton("📋 用户菜单", callback_data="menu_user"),
-                 InlineKeyboardButton("🔧 管理员菜单", callback_data="menu_admin")]
-            ]
-        else:
-            keyboard = [
-                [InlineKeyboardButton("📋 用户菜单", callback_data="menu_user")]
-            ]
+        
+        # 非管理员不允许访问菜单系统
+        if not is_admin:
+            await query.answer("非管理员无法使用菜单系统，请使用命令操作。", show_alert=True)
+            return
+        
+        keyboard = [
+            [InlineKeyboardButton("📋 用户菜单", callback_data="menu_user"),
+             InlineKeyboardButton("🔧 管理员菜单", callback_data="menu_admin")]
+        ]
         
         menu_text = (
             "**主菜单**\n\n"
@@ -315,6 +320,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # 处理用户命令（通过按钮）
     if data == "cmd_getid":
+        is_admin = await db.is_admin(user_id)
+        
+        # 非管理员不允许使用菜单
+        if not is_admin:
+            await query.answer("非管理员无法使用菜单系统，请使用 `/getid` 命令。", show_alert=True)
+            return
+        
         user = query.from_user
         message_text = (
             f"**您的用户信息:**\n\n"
@@ -323,20 +335,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"用户名: @{user.username or '无'}"
         )
         
-        is_admin = await db.is_admin(user_id)
-        keyboard = [[InlineKeyboardButton("❌ 关闭", callback_data="menu_close")]]
-        
-        if is_admin:
-            keyboard = [[InlineKeyboardButton("🔙 返回用户菜单", callback_data="menu_user"),
-                        InlineKeyboardButton("❌ 关闭", callback_data="menu_close")]]
-        
+        keyboard = [[InlineKeyboardButton("🔙 返回用户菜单", callback_data="menu_user")]]
         await query.edit_message_text(message_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
         return
     
     if data == "cmd_verification_mode":
+        is_admin = await db.is_admin(user_id)
+        
+        # 非管理员不允许使用菜单
+        if not is_admin:
+            await query.answer("非管理员无法使用菜单系统，请使用 `/verification_mode` 命令。", show_alert=True)
+            return
+        
         user_verification_mode = await db.get_user_verification_mode(user_id)
         from config import config
-        is_admin = await db.is_admin(user_id)
         
         if user_verification_mode:
             mode_text = "图片验证码" if user_verification_mode == "image" else "文本验证"
@@ -348,15 +360,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [InlineKeyboardButton("🖼️ 图片验证码", callback_data="set_verification_image"),
              InlineKeyboardButton("📝 文本验证", callback_data="set_verification_text")],
-            [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")]
+            [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")],
+            [InlineKeyboardButton("🔙 返回用户菜单", callback_data="menu_user"),
+             InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")]
         ]
-        
-        # 只有管理员才显示返回菜单的按钮
-        if is_admin:
-            keyboard.append([InlineKeyboardButton("🔙 返回用户菜单", callback_data="menu_user"),
-                           InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")])
-        else:
-            keyboard.append([InlineKeyboardButton("❌ 关闭", callback_data="menu_close")])
         
         message_text = (
             "**验证模式设置**\n\n"
@@ -372,21 +379,22 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if data == "cmd_disable_ai_check":
-        is_disabled = await db.is_ai_check_disabled(user_id)
         is_admin = await db.is_admin(user_id)
+        
+        # 非管理员不允许使用菜单
+        if not is_admin:
+            await query.answer("非管理员无法使用菜单系统，请使用 `/disable_ai_check` 命令。", show_alert=True)
+            return
+        
+        is_disabled = await db.is_ai_check_disabled(user_id)
         status = "已禁用 ❌" if is_disabled else "已启用 ✓"
         
         keyboard = [
             [InlineKeyboardButton("启用 AI 审查", callback_data="set_ai_check_on"),
-             InlineKeyboardButton("禁用 AI 审查", callback_data="set_ai_check_off")]
+             InlineKeyboardButton("禁用 AI 审查", callback_data="set_ai_check_off")],
+            [InlineKeyboardButton("🔙 返回用户菜单", callback_data="menu_user"),
+             InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")]
         ]
-        
-        # 只有管理员才显示返回菜单的按钮
-        if is_admin:
-            keyboard.append([InlineKeyboardButton("🔙 返回用户菜单", callback_data="menu_user"),
-                           InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")])
-        else:
-            keyboard.append([InlineKeyboardButton("❌ 关闭", callback_data="menu_close")])
         
         message_text = (
             f"**AI 内容审查**\n\n"
@@ -519,8 +527,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # 验证模式选择
     if data.startswith("set_verification_"):
-        mode_type = data.split("_")[2]
         is_admin = await db.is_admin(user_id)
+        
+        # 非管理员不允许使用菜单
+        if not is_admin:
+            await query.answer("非管理员无法使用菜单系统，请使用 `/verification_mode` 命令。", show_alert=True)
+            return
+        
+        mode_type = data.split("_")[2]
         
         if mode_type == "image":
             await db.set_user_verification_mode(user_id, "image")
@@ -539,14 +553,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             return
         
-        if is_admin:
-            keyboard = [
-                [InlineKeyboardButton("🔙 返回验证模式设置", callback_data="cmd_verification_mode")],
-                [InlineKeyboardButton("📋 用户菜单", callback_data="menu_user")],
-                [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")]
-            ]
-        else:
-            keyboard = [[InlineKeyboardButton("❌ 关闭", callback_data="menu_close")]]
+        keyboard = [
+            [InlineKeyboardButton("🔙 返回验证模式设置", callback_data="cmd_verification_mode")],
+            [InlineKeyboardButton("📋 用户菜单", callback_data="menu_user")],
+            [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")]
+        ]
         
         await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
         return
