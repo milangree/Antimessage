@@ -225,23 +225,269 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     user_id = query.from_user.id
     
-    # 处理验证模式选择
+    # 处理用户菜单
+    if data == "menu_user":
+        keyboard = [
+            [InlineKeyboardButton("ℹ️ 获取用户ID", callback_data="cmd_getid"),
+             InlineKeyboardButton("🎯 验证模式", callback_data="cmd_verification_mode")],
+            [InlineKeyboardButton("🤖 AI审查设置", callback_data="cmd_disable_ai_check"),
+             InlineKeyboardButton("❌ 关闭", callback_data="menu_close")]
+        ]
+        menu_text = (
+            "**用户菜单**\n\n"
+            "请选择一个操作：\n\n"
+            "_💡 提示：您也可以继续使用相应的 `/` 命令，例如 `/getid`, `/verification_mode` 等_"
+        )
+        await query.edit_message_text(
+            menu_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+        return
+    
+    # 处理管理员菜单
+    if data == "menu_admin":
+        if not await db.is_admin(user_id):
+            await query.answer("你没有权限访问管理员菜单", show_alert=True)
+            return
+        
+        keyboard = [
+            [InlineKeyboardButton("📋 黑名单", callback_data="cmd_blacklist"),
+             InlineKeyboardButton("👤 用户信息", callback_data="cmd_stats")],
+            [InlineKeyboardButton("🔒 豁免名单", callback_data="cmd_exemptions"),
+             InlineKeyboardButton("⚙️ 管理面板", callback_data="panel_main")],
+            [InlineKeyboardButton("📝 自动回复", callback_data="cmd_autoreply"),
+             InlineKeyboardButton("📊 被过滤消息", callback_data="cmd_view_filtered")],
+            [InlineKeyboardButton("❌ 关闭", callback_data="menu_close")]
+        ]
+        admin_menu_text = (
+            "**管理员菜单**\n\n"
+            "请选择一个操作：\n\n"
+            "_💡 提示：您也可以使用 `/panel`, `/blacklist`, `/stats` 等相应的 `/` 命令_"
+        )
+        await query.edit_message_text(
+            admin_menu_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+        return
+    
+    # 关闭菜单
+    if data == "menu_close":
+        await query.edit_message_text("✓ 已关闭菜单")
+        return
+    
+    # 处理用户命令（通过按钮）
+    if data == "cmd_getid":
+        user = query.from_user
+        message_text = (
+            f"**您的用户信息:**\n\n"
+            f"用户ID: `{user.id}`\n"
+            f"名字: {user.first_name}\n"
+            f"用户名: @{user.username or '无'}"
+        )
+        keyboard = [[InlineKeyboardButton("返回", callback_data="menu_user")]]
+        await query.edit_message_text(message_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+        return
+    
+    if data == "cmd_verification_mode":
+        user_verification_mode = await db.get_user_verification_mode(user_id)
+        from config import config
+        
+        if user_verification_mode:
+            mode_text = "图片验证码" if user_verification_mode == "image" else "文本验证"
+            is_custom = "✓ 已自定义" if user_verification_mode else ""
+        else:
+            mode_text = "图片验证码" if config.VERIFICATION_USE_IMAGE else "文本验证"
+            is_custom = "（默认设置）"
+        
+        keyboard = [
+            [InlineKeyboardButton("🖼️ 图片验证码", callback_data="set_verification_image"),
+             InlineKeyboardButton("📝 文本验证", callback_data="set_verification_text")],
+            [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")],
+            [InlineKeyboardButton("返回", callback_data="menu_user")]
+        ]
+        
+        message_text = (
+            "**验证模式设置**\n\n"
+            f"当前模式: {mode_text} {is_custom}\n\n"
+            "请选择您的验证方式："
+        )
+        
+        await query.edit_message_text(
+            message_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+        return
+    
+    if data == "cmd_disable_ai_check":
+        is_disabled = await db.is_ai_check_disabled(user_id)
+        status = "已禁用 ❌" if is_disabled else "已启用 ✓"
+        
+        keyboard = [
+            [InlineKeyboardButton("启用 AI 审查", callback_data="set_ai_check_on"),
+             InlineKeyboardButton("禁用 AI 审查", callback_data="set_ai_check_off")],
+            [InlineKeyboardButton("返回", callback_data="menu_user")]
+        ]
+        
+        message_text = (
+            f"**AI 内容审查**\n\n"
+            f"当前状态: {status}\n\n"
+            "请选择设置："
+        )
+        
+        await query.edit_message_text(
+            message_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+        return
+    
+    # 处理AI审查设置
+    if data == "set_ai_check_on":
+        await db.set_ai_check_disabled(user_id, False)
+        await query.answer("✓ 已启用 AI 内容审查")
+        await query.edit_message_text("✓ 已启用 AI 内容审查。您的消息将进行安全性检查。")
+        return
+    
+    if data == "set_ai_check_off":
+        await db.set_ai_check_disabled(user_id, True)
+        await query.answer("✓ 已禁用 AI 内容审查")
+        await query.edit_message_text("✓ 已禁用 AI 内容审查。您的消息将直接转发。")
+        return
+    
+    # 处理管理员命令
+    if data == "cmd_blacklist":
+        if not await db.is_admin(user_id):
+            await query.answer("你没有权限", show_alert=True)
+            return
+        from services.blacklist import get_blacklist_keyboard
+        message, keyboard = await get_blacklist_keyboard(page=1)
+        if keyboard:
+            await query.edit_message_text(message, reply_markup=keyboard, parse_mode='Markdown')
+        else:
+            await query.edit_message_text(message)
+        return
+    
+    if data == "cmd_stats":
+        if not await db.is_admin(user_id):
+            await query.answer("你没有权限", show_alert=True)
+            return
+        total_users = await db.get_total_users_count()
+        blocked_users = await db.get_blocked_users_count()
+        filtered_messages = await db.get_filtered_messages_count()
+        
+        stats_text = (
+            "**统计信息**\n\n"
+            f"总用户数: {total_users}\n"
+            f"黑名单用户: {blocked_users}\n"
+            f"被过滤消息: {filtered_messages}"
+        )
+        
+        keyboard = [[InlineKeyboardButton("返回", callback_data="menu_admin")]]
+        await query.edit_message_text(stats_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+        return
+    
+    if data == "cmd_view_filtered":
+        if not await db.is_admin(user_id):
+            await query.answer("你没有权限", show_alert=True)
+            return
+        filtered_messages = await db.get_filtered_messages(limit=10)
+        if not filtered_messages:
+            msg = "当前没有被过滤的消息"
+        else:
+            msg = "**最近被过滤的消息**\n\n"
+            for i, fm in enumerate(filtered_messages[:10], 1):
+                msg += f"{i}. 用户 {fm['first_name']} (@{fm['username']})\n"
+                msg += f"   原因: {fm['reason']}\n"
+                msg += f"   内容: {fm['content'][:50]}...\n"
+        
+        keyboard = [[InlineKeyboardButton("返回", callback_data="menu_admin")]]
+        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+        return
+    
+    if data == "cmd_autoreply":
+        if not await db.is_admin(user_id):
+            await query.answer("你没有权限", show_alert=True)
+            return
+        is_enabled = await db.get_autoreply_enabled()
+        status = "已启用 ✓" if is_enabled else "已禁用 ❌"
+        
+        keyboard = [
+            [InlineKeyboardButton("启用自动回复", callback_data="set_autoreply_on"),
+             InlineKeyboardButton("禁用自动回复", callback_data="set_autoreply_off")],
+            [InlineKeyboardButton("知识库管理", callback_data="panel_autoreply")],
+            [InlineKeyboardButton("返回", callback_data="menu_admin")]
+        ]
+        
+        msg = f"**自动回复管理**\n\n当前状态: {status}\n\n点击按钮进行管理"
+        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+        return
+    
+    if data == "set_autoreply_on":
+        if not await db.is_admin(user_id):
+            await query.answer("你没有权限", show_alert=True)
+            return
+        await db.set_autoreply_enabled(True)
+        await query.answer("✓ 已启用自动回复")
+        await query.edit_message_text("✓ 已启用自动回复功能")
+        return
+    
+    if data == "set_autoreply_off":
+        if not await db.is_admin(user_id):
+            await query.answer("你没有权限", show_alert=True)
+            return
+        await db.set_autoreply_enabled(False)
+        await query.answer("✓ 已禁用自动回复")
+        await query.edit_message_text("✓ 已禁用自动回复功能")
+        return
+    
+    if data == "cmd_exemptions":
+        if not await db.is_admin(user_id):
+            await query.answer("你没有权限", show_alert=True)
+            return
+        exemptions = await db.get_all_exemptions()
+        if not exemptions:
+            msg = "当前没有豁免用户"
+        else:
+            msg = "**豁免名单**\n\n"
+            for e in exemptions:
+                expire_info = f"过期: {e.get('expires_at', '永久')}" if not e.get('is_permanent') else "永久豁免"
+                msg += f"• 用户 {e['user_id']}: {expire_info}\n"
+        
+        keyboard = [[InlineKeyboardButton("返回", callback_data="menu_admin")]]
+        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+        return
+    
+    # 验证模式选择
     if data.startswith("set_verification_"):
         mode_type = data.split("_")[2]
         
         if mode_type == "image":
             await db.set_user_verification_mode(user_id, "image")
-            await query.edit_message_text("✓ 已设置验证模式为 **图片验证码**\n\n下次人机验证时将使用数字图片验证码。", parse_mode='Markdown')
+            await query.answer("✓ 已设置为图片验证码")
+            msg = "✓ 已设置验证模式为 **图片验证码**\n\n下次人机验证时将使用数字图片验证码。"
         elif mode_type == "text":
             await db.set_user_verification_mode(user_id, "text")
-            await query.edit_message_text("✓ 已设置验证模式为 **文本验证**\n\n下次人机验证时将使用常识性问答。", parse_mode='Markdown')
+            await query.answer("✓ 已设置为文本验证")
+            msg = "✓ 已设置验证模式为 **文本验证**\n\n下次人机验证时将使用常识性问答。"
         elif mode_type == "default":
             await db.set_user_verification_mode(user_id, None)
+            from config import config
             default_mode = "图片验证码" if config.VERIFICATION_USE_IMAGE else "文本验证"
-            await query.edit_message_text(f"✓ 已重置为默认设置\n\n默认验证模式: {default_mode}", parse_mode='Markdown')
+            msg = f"✓ 已重置为默认设置\n\n默认验证模式: {default_mode}"
+            await query.answer("✓ 已重置为默认设置")
+        else:
+            return
+        
+        keyboard = [[InlineKeyboardButton("返回", callback_data="menu_user")]]
+        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
         return
     
+    # 其他现有的回调处理...
     if data.startswith("block_user_"):
+
         if not await db.is_admin(user_id):
             await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
             return
@@ -440,7 +686,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await query.message.reply_text("现在您可以发送消息了！")
     
-    elif data == "panel_back":
+    elif data == "panel_main" or data == "panel_back":
         if not await db.is_admin(user_id):
             await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
             return

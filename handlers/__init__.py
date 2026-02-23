@@ -1,27 +1,16 @@
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
-from .command_handler import start, help_command, block, unblock, blacklist, stats, getid, autoreply, panel, exempt, disable_ai_check, verification_mode
+from .command_handler import start, help_command, panel
 from .user_handler import handle_message
 from .callback_handler import handle_callback
-from .admin_handler import handle_admin_reply, view_filtered
+from .admin_handler import handle_admin_reply
 from config import config
 
 def register_handlers(app: Application):
-    app.add_handler(CommandHandler("getid", getid))
     app.add_handler(CommandHandler("start", start, filters=filters.ChatType.PRIVATE))
-    app.add_handler(CommandHandler("disable_ai_check", disable_ai_check, filters=filters.ChatType.PRIVATE))
-    app.add_handler(CommandHandler("verification_mode", verification_mode, filters=filters.ChatType.PRIVATE))
+    app.add_handler(CommandHandler("help", help_command, filters=filters.ChatType.PRIVATE))
 
     if config.FORUM_GROUP_ID and config.ADMIN_IDS:
-        app.add_handler(CommandHandler("help", help_command, filters=filters.ChatType.PRIVATE))
-        app.add_handler(CommandHandler("block", block))
-        app.add_handler(CommandHandler("unblock", unblock))
         app.add_handler(CommandHandler("panel", panel))
-        app.add_handler(CommandHandler("blacklist", blacklist))
-        app.add_handler(CommandHandler("stats", stats))
-        app.add_handler(CommandHandler("view_filtered", view_filtered))
-        app.add_handler(CommandHandler("autoreply", autoreply))
-        app.add_handler(CommandHandler("exempt", exempt))
-        
         app.add_handler(MessageHandler(
             filters.Chat(chat_id=config.FORUM_GROUP_ID) & filters.REPLY & ~filters.COMMAND,
             handle_admin_reply

@@ -21,10 +21,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"你好, {user.first_name}!\n\n"
         "欢迎使用双向聊天机器人。\n"
         "你可以直接在这里发送消息，管理员会尽快回复你。\n\n"
-        "输入 /help 查看更多帮助信息。"
+        "点击下方按钮查看功能菜单。"
     )
     
-    await update.message.reply_text(welcome_message)
+    keyboard = [
+        [InlineKeyboardButton("📋 用户菜单", callback_data="menu_user"),
+         InlineKeyboardButton("🔧 管理员菜单", callback_data="menu_admin")]
+    ]
+    
+    await update.message.reply_text(
+        welcome_message,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
@@ -33,27 +41,26 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• 发送文本、图片、视频、音频和文档\n"
         "• 支持Markdown格式\n"
         "• 首次发送消息需要进行人机验证\n\n"
-        "**用户命令（私聊中可用）:**\n"
-        "• `/start` - 开始使用机器人\n"
+        "**主要命令:**\n"
+        "• `/start` - 启动菜单（用户和管理员菜单）\n"
         "• `/help` - 显示此帮助信息\n"
-        "• `/getid` - 获取您的用户ID\n"
-        "• `/verification_mode` - 切换验证模式（文本/图片）\n"
-        "• `/disable_ai_check on` - 禁用AI内容审查\n"
-        "• `/disable_ai_check off` - 启用AI内容审查\n"
-        "• `/disable_ai_check` - 查看当前状态\n"
+        "• `/panel` - 打开管理面板（仅管理员）\n\n"
+        "**用户功能（通过 /start 菜单）:**\n"
+        "• 📋 获取用户ID\n"
+        "• 🎯 切换验证模式（文本/图片验证码）\n"
+        "• 🤖 AI审查设置（启用/禁用）\n"
         "• `/rss_add <url>` - 添加RSS订阅\n"
         "• `/rss_list` - 查看所有订阅\n"
         "• `/rss_remove <url|ID>` - 移除订阅\n\n"
-        "**管理员命令:**\n"
-        "• `/panel` - 打开管理面板\n"
-        "• `/block` - 在用户话题中拉黑用户\n"
-        "• `/blacklist` - 查看黑名单\n"
-        "• `/unblock <user_id>` - 解除黑名单\n"
-        "• `/stats` - 查看统计信息\n"
-        "• `/view_filtered` - 查看被拦截的消息\n"
-        "• `/exempt <user_id> permanent [reason]` - 永久豁免用户\n"
-        "• `/exempt <user_id> temp <小时数> [reason]` - 临时豁免用户\n"
-        "• `/autoreply` - 管理自动回复功能\n"
+        "**管理员功能（通过 /start 或 /panel）:**\n"
+        "• 📋 黑名单管理\n"
+        "• 📊 统计信息\n"
+        "• 🔒 豁免名单管理\n"
+        "• 💬 自动回复管理\n"
+        "• 🔍 查看被过滤的消息\n\n"
+        "**说明:**\n"
+        "点击 `/start` 命令可打开主菜单，通过按钮进行各项操作。\n"
+        "所有用户设置都已整合到菜单系统中。"
     )
     
     await update.message.reply_text(help_text, parse_mode='Markdown')

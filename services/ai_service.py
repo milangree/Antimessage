@@ -45,6 +45,11 @@ class AIProvider(ABC):
     @abstractmethod
     async def analyze_message(self, text: str, image_bytes: bytes = None) -> dict:
         pass
+    
+    @abstractmethod
+    async def analyze_json_message(self, json_data: str) -> dict:
+        """分析 JSON 格式的消息内容"""
+        pass
 
     @abstractmethod
     async def generate_verification_challenge(self) -> dict:
@@ -327,6 +332,42 @@ class GeminiProvider(AIProvider):
             print(f"Gemini自动回复生成失败: {e}")
             return None
     
+    async def analyze_json_message(self, json_data: str) -> dict:
+        """分析 JSON 格式的消息内容"""
+        try:
+            data = json.loads(json_data)
+            
+            # 从JSON中提取所有可能包含危险内容的文本字段
+            text_contents = []
+            
+            # 提取主消息
+            if "message" in data and data["message"]:
+                text_contents.append(f"[消息] {data['message']}")
+            
+            # 提取引用文本
+            if "reply_to" in data and isinstance(data["reply_to"], dict):
+                if "quote_text" in data["reply_to"] and data["reply_to"]["quote_text"]:
+                    text_contents.append(f"[引用] {data['reply_to']['quote_text']}")
+            
+            # 提取发送者信息（其他数据）
+            if "text" in data and data["text"]:
+                text_contents.append(f"[内容] {data['text']}")
+            
+            # 如果没有找到文本内容，返回安全
+            if not text_contents:
+                return {"is_spam": False, "reason": "JSON消息中未找到文本内容。"}
+            
+            # 合并所有文本并进行分析
+            combined_text = "\n".join(text_contents)
+            return await self.analyze_message(combined_text)
+            
+        except json.JSONDecodeError as e:
+            print(f"JSON解析失败: {e}")
+            return {"is_spam": True, "reason": "JSON格式错误，可能包含不当数据。"}
+        except Exception as e:
+            print(f"JSON消息分析失败: {e}")
+            return {"is_spam": False, "reason": "分析失败"}
+    
     async def get_models(self) -> list:
         fetched_models = []
         try:
@@ -342,6 +383,7 @@ class GeminiProvider(AIProvider):
         all_models = list(set(default_models + fetched_models))
         all_models.sort(reverse=True)
         return all_models
+
 
 
 class OpenAIProvider(AIProvider):
@@ -646,6 +688,42 @@ class OpenAIProvider(AIProvider):
              print(f"OpenAI autoreply failed: {e}")
              return None
     
+    async def analyze_json_message(self, json_data: str) -> dict:
+        """分析 JSON 格式的消息内容"""
+        try:
+            data = json.loads(json_data)
+            
+            # 从JSON中提取所有可能包含危险内容的文本字段
+            text_contents = []
+            
+            # 提取主消息
+            if "message" in data and data["message"]:
+                text_contents.append(f"[消息] {data['message']}")
+            
+            # 提取引用文本
+            if "reply_to" in data and isinstance(data["reply_to"], dict):
+                if "quote_text" in data["reply_to"] and data["reply_to"]["quote_text"]:
+                    text_contents.append(f"[引用] {data['reply_to']['quote_text']}")
+            
+            # 提取发送者信息（其他数据）
+            if "text" in data and data["text"]:
+                text_contents.append(f"[内容] {data['text']}")
+            
+            # 如果没有找到文本内容，返回安全
+            if not text_contents:
+                return {"is_spam": False, "reason": "JSON消息中未找到文本内容。"}
+            
+            # 合并所有文本并进行分析
+            combined_text = "\n".join(text_contents)
+            return await self.analyze_message(combined_text)
+            
+        except json.JSONDecodeError as e:
+            print(f"JSON解析失败: {e}")
+            return {"is_spam": True, "reason": "JSON格式错误，可能包含不当数据。"}
+        except Exception as e:
+            print(f"JSON消息分析失败: {e}")
+            return {"is_spam": False, "reason": "分析失败"}
+    
     async def get_models(self) -> list:
         fetched_models = []
         try:
@@ -659,6 +737,7 @@ class OpenAIProvider(AIProvider):
         all_models = list(set(default_models + fetched_models))
         all_models.sort()
         return all_models
+
 
 
 class AIService:

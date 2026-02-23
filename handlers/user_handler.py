@@ -200,7 +200,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_to_message_id=message.message_id
             )
 
-            analysis_result = await gemini_service.analyze_message(message, image_bytes)
+            # 检查消息是否为JSON格式
+            message_text = message.text or message.caption or ""
+            analysis_result = None
+            
+            if message_text.strip().startswith("{"):
+                # 尝试作为JSON分析
+                try:
+                    analysis_result = await gemini_service.analyze_json_message(message_text)
+                except Exception as e:
+                    # JSON分析失败，降级为普通文本分析
+                    print(f"JSON analysis failed: {e}, falling back to text analysis")
+                    analysis_result = None
+            
+            # 如果JSON分析失败或不是JSON，进行普通分析
+            if analysis_result is None:
+                analysis_result = await gemini_service.analyze_message(message, image_bytes)
+            
             if analysis_result.get("is_spam"):
                 await db.save_filtered_message(
                     user_id=user.id,
