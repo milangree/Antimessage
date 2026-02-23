@@ -457,7 +457,47 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from services.blacklist import block_user
         reason = "通过话题用户卡片按钮"
         response = await block_user(target_user_id, reason, user_id, permanent=True)
-        await query.edit_message_text(f"已封禁\n\n{response}")
+        
+        # 更新内联按钮为解封用户
+        keyboard = [[InlineKeyboardButton("解封用户", callback_data=f"admin_unblock_{target_user_id}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        try:
+            await query.edit_message_reply_markup(reply_markup=reply_markup)
+        except:
+            pass
+        
+        await query.answer(f"已封禁用户\n\n{response}", show_alert=True)
+        return
+    
+    if data.startswith("admin_unblock_"):
+        if not await db.is_admin(user_id):
+            await query.answer("抱歉，您没有权限执行此操作。", show_alert=True)
+            return
+        
+        try:
+            target_user_id = int(data.split("_")[2])
+        except (ValueError, IndexError):
+            await query.answer("无效的用户ID。", show_alert=True)
+            return
+        
+        from services.blacklist import unblock_user
+        response = await unblock_user(target_user_id)
+        
+        # 更新内联按钮为封禁用户
+        keyboard = [[InlineKeyboardButton("封禁用户", callback_data=f"block_user_{target_user_id}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        try:
+            await query.edit_message_reply_markup(reply_markup=reply_markup)
+        except:
+            pass
+        
+        await query.answer(f"已解封用户\n\n{response}", show_alert=True)
+        return
+    
+    if data.startswith("already_banned_"):
+        await query.answer("该用户已被永久封禁", show_alert=True)
         return
 
     if data.startswith("verify_image_"):

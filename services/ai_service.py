@@ -807,7 +807,7 @@ class AIService:
         provider = await self.get_provider()
         if not provider:
             # 如果没有提供商，返回默认实现
-            return GeminiProvider(None).generate_image_verification()
+            return await GeminiProvider(None).generate_image_verification()
         return await provider.generate_image_verification()
 
 ai_service = AIService()

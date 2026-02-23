@@ -47,7 +47,21 @@ async def send_user_info_card(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"**首次联系:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
     )
     
-    keyboard = [[InlineKeyboardButton("封禁用户", callback_data=f"block_user_{user.id}")]]
+    # 检查用户是否被拉黑
+    is_blocked, is_permanent = await db.is_blacklisted(user.id)
+    
+    if is_blocked:
+        if is_permanent:
+            button_text = "已永久封禁"
+            button_callback = f"already_banned_{user.id}"
+        else:
+            button_text = "解封用户"
+            button_callback = f"admin_unblock_{user.id}"
+    else:
+        button_text = "封禁用户"
+        button_callback = f"block_user_{user.id}"
+    
+    keyboard = [[InlineKeyboardButton(button_text, callback_data=button_callback)]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if photos and photos.total_count > 0:

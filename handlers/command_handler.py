@@ -39,8 +39,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     
     keyboard = [
-        [InlineKeyboardButton("📋 用户菜单", callback_data="menu_user"),
-         InlineKeyboardButton("🔧 管理员菜单", callback_data="menu_admin")]
+        [InlineKeyboardButton(" 管理员菜单", callback_data="menu_admin")]
     ]
     
     await update.message.reply_text(
@@ -586,3 +585,103 @@ async def verification_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "无效的参数。请选择验证模式或使用按钮：",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+
+async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """封禁用户命令: /ban <用户名或用户ID> [原因]"""
+    user_id = update.effective_user.id
+    
+    if not await db.is_admin(user_id):
+        return
+    
+    if not context.args or len(context.args) < 1:
+        await update.message.reply_text(
+            "用法: /ban <用户名或用户ID> [原因]\n\n"
+            "示例:\n"
+            "/ban @username 广告\n"
+            "/ban 123456789 不文明发言"
+        )
+        return
+    
+    user_identifier = context.args[0]
+    reason = " ".join(context.args[1:]) if len(context.args) > 1 else "管理员手动封禁"
+    
+    try:
+        # 处理用户名或用户ID
+        if user_identifier.startswith("@"):
+            # 按用户名查询
+            target_user = await db.get_user_by_username(user_identifier[1:])
+            if not target_user:
+                await update.message.reply_text(f"未找到用户名为 {user_identifier} 的用户。")
+                return
+            target_user_id = target_user['user_id']
+        else:
+            # 按用户ID查询
+            target_user_id = int(user_identifier)
+            target_user = await db.get_user(target_user_id)
+            if not target_user:
+                await update.message.reply_text(f"未找到用户ID为 {target_user_id} 的用户。")
+                return
+        
+        # 封禁用户
+        await db.add_to_blacklist(
+            target_user_id,
+            reason=reason,
+            blocked_by=user_id,
+            permanent=True
+        )
+        
+        await update.message.reply_text(
+            f"✓ 已封禁用户 {target_user.get('first_name', '用户')} (ID: {target_user_id})\n"
+            f"原因: {reason}"
+        )
+    except ValueError:
+        await update.message.reply_text("无效的用户ID格式。")
+    except Exception as e:
+        await update.message.reply_text(f"封禁用户时出错: {str(e)}")
+
+async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """解封用户命令: /unban <用户名或用户ID>"""
+    user_id = update.effective_user.id
+    
+    if not await db.is_admin(user_id):
+        return
+    
+    if not context.args or len(context.args) < 1:
+        await update.message.reply_text(
+            "用法: /unban <用户名或用户ID>\n\n"
+            "示例:\n"
+            "/unban @username\n"
+            "/unban 123456789"
+        )
+        return
+    
+    user_identifier = context.args[0]
+    
+    try:
+        # 处理用户名或用户ID
+        if user_identifier.startswith("@"):
+            # 按用户名查询
+            target_user = await db.get_user_by_username(user_identifier[1:])
+            if not target_user:
+                await update.message.reply_text(f"未找到用户名为 {user_identifier} 的用户。")
+                return
+            target_user_id = target_user['user_id']
+        else:
+            # 按用户ID查询
+            target_user_id = int(user_identifier)
+            target_user = await db.get_user(target_user_id)
+            if not target_user:
+                await update.message.reply_text(f"未找到用户ID为 {target_user_id} 的用户。")
+                return
+        
+        # 解封用户
+        await db.remove_from_blacklist(target_user_id)
+        await db.set_user_blacklist_strikes(target_user_id, 0)
+        
+        await update.message.reply_text(
+            f"✓ 已解封用户 {target_user.get('first_name', '用户')} (ID: {target_user_id})"
+        )
+    except ValueError:
+        await update.message.reply_text("无效的用户ID格式。")
+    except Exception as e:
+        await update.message.reply_text(f"解封用户时出错: {str(e)}")

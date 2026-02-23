@@ -1,5 +1,5 @@
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
-from .command_handler import start, help_command, panel
+from .command_handler import start, help_command, panel, ban_user, unban_user
 from .user_handler import handle_message
 from .callback_handler import handle_callback
 from .admin_handler import handle_admin_reply
@@ -8,6 +8,8 @@ from config import config
 def register_handlers(app: Application):
     app.add_handler(CommandHandler("start", start, filters=filters.ChatType.PRIVATE))
     app.add_handler(CommandHandler("help", help_command, filters=filters.ChatType.PRIVATE))
+    app.add_handler(CommandHandler("ban", ban_user, filters=filters.ChatType.PRIVATE))
+    app.add_handler(CommandHandler("unban", unban_user, filters=filters.ChatType.PRIVATE))
 
     if config.FORUM_GROUP_ID and config.ADMIN_IDS:
         app.add_handler(CommandHandler("panel", panel))
