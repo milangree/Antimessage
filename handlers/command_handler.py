@@ -21,7 +21,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin = await db.is_admin(user_id)
     
     if not is_admin:
-        # 普通用户 - 无声忽略，不显示任何内容
+        # 普通用户 - 显示欢迎信息，但不显示内联按钮
+        welcome_message = (
+            f"你好, {user.first_name}! 👋\n\n"
+            "欢迎使用双向聊天机器人。\n"
+            "你可以直接在这里发送消息，管理员会尽快回复你。\n\n"
+            "在你发送第一条消息前，请先完成人机验证。"
+        )
+        await update.message.reply_text(welcome_message)
         return
     
     # 管理员 - 显示完整的内联按钮菜单

@@ -236,8 +236,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         keyboard = [
-            [InlineKeyboardButton("ℹ️ 获取用户ID", callback_data="cmd_getid"),
-             InlineKeyboardButton("🎯 验证模式", callback_data="cmd_verification_mode")],
+            [InlineKeyboardButton("🎯 验证模式", callback_data="cmd_verification_mode")],
             [InlineKeyboardButton("🤖 AI审查设置", callback_data="cmd_disable_ai_check")],
             [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start"),
              InlineKeyboardButton("❌ 关闭", callback_data="menu_close")]
@@ -247,7 +246,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "**用户菜单**\n\n"
             "请选择一个操作：\n\n"
             "_💡 提示：您也可以继续使用相应的 `/` 命令：_\n"
-            "• `/getid` - 获取用户ID\n"
             "• `/verification_mode` - 切换验证模式\n"
             "• `/disable_ai_check` - 管理AI审查\n"
         )
