@@ -597,23 +597,27 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.is_topic_message and update.message.reply_to_message:
         # 获取被回复消息的发送者ID
         reply_to_user_id = update.message.reply_to_message.from_user.id
+        # 尝试从数据库获取用户信息以便显示友好名
         reply_to_user = await db.get_user(reply_to_user_id)
-        
-        if not reply_to_user:
-            await update.message.reply_text("未找到该用户。")
-            return
-        
+        display_name = None
+        if reply_to_user:
+            display_name = reply_to_user.get('first_name')
+        else:
+            # 使用消息中的发送者名字作为回退
+            display_name = update.message.reply_to_message.from_user.first_name or '用户'
+
         reason = " ".join(context.args) if context.args else "管理员手动封禁"
-        
+
+        # 即使数据库中没有该用户记录，也允许封禁（按ID封禁）
         await db.add_to_blacklist(
             reply_to_user_id,
             reason=reason,
             blocked_by=user_id,
             permanent=True
         )
-        
+
         await update.message.reply_text(
-            f"✓ 已封禁用户 {reply_to_user.get('first_name', '用户')} (ID: {reply_to_user_id})\n"
+            f"✓ 已封禁用户 {display_name} (ID: {reply_to_user_id})\n"
             f"原因: {reason}"
         )
         return
@@ -634,19 +638,26 @@ async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # 处理用户名或用户ID
         if user_identifier.startswith("@"):
-            # 按用户名查询
-            target_user = await db.get_user_by_username(user_identifier[1:])
+            # 按用户名查询，先查数据库，找不到再尝试通过Bot API解析
+            username = user_identifier[1:]
+            target_user = await db.get_user_by_username(username)
             if not target_user:
-                await update.message.reply_text(f"未找到用户名为 {user_identifier} 的用户。")
-                return
-            target_user_id = target_user['user_id']
+                try:
+                    chat = await context.bot.get_chat(user_identifier)
+                    target_user_id = chat.id
+                    target_user = {'user_id': target_user_id, 'first_name': getattr(chat, 'first_name', None) or username}
+                except Exception:
+                    await update.message.reply_text(f"未找到用户名为 {user_identifier} 的用户。")
+                    return
+            else:
+                target_user_id = target_user['user_id']
         else:
             # 按用户ID查询
             target_user_id = int(user_identifier)
             target_user = await db.get_user(target_user_id)
+            # 即使数据库中没有该用户，也允许按ID封禁
             if not target_user:
-                await update.message.reply_text(f"未找到用户ID为 {target_user_id} 的用户。")
-                return
+                target_user = {'user_id': target_user_id, 'first_name': str(target_user_id)}
         
         # 封禁用户
         await db.add_to_blacklist(
@@ -676,17 +687,19 @@ async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.is_topic_message and update.message.reply_to_message:
         # 获取被回复消息的发送者ID
         reply_to_user_id = update.message.reply_to_message.from_user.id
+        # 尝试从数据库获取用户信息以便显示友好名
         reply_to_user = await db.get_user(reply_to_user_id)
-        
-        if not reply_to_user:
-            await update.message.reply_text("未找到该用户。")
-            return
-        
+        display_name = None
+        if reply_to_user:
+            display_name = reply_to_user.get('first_name')
+        else:
+            display_name = update.message.reply_to_message.from_user.first_name or '用户'
+
         await db.remove_from_blacklist(reply_to_user_id)
         await db.set_user_blacklist_strikes(reply_to_user_id, 0)
-        
+
         await update.message.reply_text(
-            f"✓ 已解封用户 {reply_to_user.get('first_name', '用户')} (ID: {reply_to_user_id})"
+            f"✓ 已解封用户 {display_name} (ID: {reply_to_user_id})"
         )
         return
     
@@ -705,19 +718,23 @@ async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # 处理用户名或用户ID
         if user_identifier.startswith("@"):
-            # 按用户名查询
-            target_user = await db.get_user_by_username(user_identifier[1:])
+            username = user_identifier[1:]
+            target_user = await db.get_user_by_username(username)
             if not target_user:
-                await update.message.reply_text(f"未找到用户名为 {user_identifier} 的用户。")
-                return
-            target_user_id = target_user['user_id']
+                try:
+                    chat = await context.bot.get_chat(user_identifier)
+                    target_user_id = chat.id
+                    target_user = {'user_id': target_user_id, 'first_name': getattr(chat, 'first_name', None) or username}
+                except Exception:
+                    await update.message.reply_text(f"未找到用户名为 {user_identifier} 的用户。")
+                    return
+            else:
+                target_user_id = target_user['user_id']
         else:
-            # 按用户ID查询
             target_user_id = int(user_identifier)
             target_user = await db.get_user(target_user_id)
             if not target_user:
-                await update.message.reply_text(f"未找到用户ID为 {target_user_id} 的用户。")
-                return
+                target_user = {'user_id': target_user_id, 'first_name': str(target_user_id)}
         
         # 解封用户
         await db.remove_from_blacklist(target_user_id)
