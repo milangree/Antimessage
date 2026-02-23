@@ -209,14 +209,24 @@ class GeminiProvider(AIProvider):
             "options": options
         }
     
-    async def generate_image_verification(self) -> dict:
-        """生成图片验证码（数字）"""
+    async def generate_image_verification(self, captcha_type: str = "mixed") -> dict:
+        """生成图片验证码
+        captcha_type: 'digits' (纯数字), 'letters' (纯字母), 'mixed' (混合)
+        """
         from PIL import Image, ImageDraw, ImageFont
         import random
         import string
         
-        # 生成4位随机数字验证码
-        captcha_text = ''.join(random.choices(string.digits, k=4))
+        # 根据类型生成验证码
+        if captcha_type == "digits":
+            captcha_text = ''.join(random.choices(string.digits, k=4))
+        elif captcha_type == "letters":
+            captcha_text = ''.join(random.choices(string.ascii_uppercase, k=4))
+        elif captcha_type == "mixed":
+            chars = string.digits + string.ascii_uppercase
+            captcha_text = ''.join(random.choices(chars, k=4))
+        else:
+            captcha_text = ''.join(random.choices(string.digits, k=4))
         
         # 创建图片
         width, height = 200, 80
@@ -265,16 +275,23 @@ class GeminiProvider(AIProvider):
             "type": "image",
             "captcha_text": captcha_text,
             "image_bytes": image_bytes,
-            "options": self._generate_captcha_options(captcha_text)
+            "options": self._generate_captcha_options(captcha_text, captcha_type)
         }
     
-    def _generate_captcha_options(self, correct_answer: str) -> list:
+    def _generate_captcha_options(self, correct_answer: str, captcha_type: str = "mixed") -> list:
         """为验证码生成多个选项"""
         options = [correct_answer]
         
-        # 生成3个错误选项（数字）
+        # 根据类型生成3个错误选项
+        if captcha_type == "digits":
+            charset = string.digits
+        elif captcha_type == "letters":
+            charset = string.ascii_uppercase
+        else:  # mixed
+            charset = string.digits + string.ascii_uppercase
+        
         while len(options) < 4:
-            wrong_option = ''.join(random.choices(string.digits, k=4))
+            wrong_option = ''.join(random.choices(charset, k=4))
             if wrong_option not in options:
                 options.append(wrong_option)
         

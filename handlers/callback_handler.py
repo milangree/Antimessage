@@ -3,7 +3,7 @@ import secrets
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
-from services.verification import verify_answer, create_verification, verify_image_answer, create_image_verification
+from services.verification import verify_answer, create_verification, verify_image_answer, create_image_verification, verify_cloudflare_token
 from services.gemini_service import gemini_service
 from database import models as db
 from utils.media_converter import sticker_to_image
@@ -500,6 +500,40 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("该用户已被永久封禁", show_alert=True)
         return
 
+    if data.startswith("cloudflare_verify_"):
+        # Cloudflare 验证处理
+        user_id_str = data.split("_", 2)[2]
+        try:
+            target_user_id = int(user_id_str)
+        except:
+            await query.answer("❌ 用户ID无效", show_alert=True)
+            return
+        
+        # 此处应该打开 Cloudflare Turnstile 验证窗口
+        # 在实际应用中，应该返回包含 Cloudflare iframe 的网页链接或直接打开 Web App
+        await query.answer(
+            "🔐 请在打开的验证窗口中完成Cloudflare验证",
+            show_alert=False
+        )
+        
+        # 发送包含验证链接的消息
+        verification_link = (
+            "请点击下方链接完成 Cloudflare Turnstile 验证:\n"
+            "[开始验证](https://your-domain.com/verify)\n\n"
+            "验证完成后，您将自动通过验证。"
+        )
+        
+        try:
+            await query.message.reply_text(
+                verification_link,
+                parse_mode='Markdown',
+                disable_web_page_preview=True
+            )
+        except:
+            pass
+        
+        return
+
     if data.startswith("verify_image_"):
         answer = data.split("_", 2)[2]
         success, verify_message, is_banned, new_verification = await verify_image_answer(user_id, answer)
@@ -541,6 +575,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
         
         if success:
+            # 删除验证提示消息
+            try:
+                await query.message.delete()
+            except:
+                pass
+            
             if 'pending_update' in context.user_data:
                 pending_update = context.user_data.pop('pending_update')
                 message = pending_update.message

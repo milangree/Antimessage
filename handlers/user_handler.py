@@ -1,10 +1,12 @@
 from telegram import Update, constants
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
+import asyncio
 from database import models as db
 from services.verification import (
     create_verification, is_verification_pending, get_pending_verification_message,
-    create_image_verification, is_image_verification_pending
+    create_image_verification, is_image_verification_pending,
+    create_cloudflare_verification, is_cloudflare_verification_pending
 )
 from services.thread_manager import get_or_create_thread
 from services.gemini_service import gemini_service
@@ -128,6 +130,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             context.user_data['pending_update'] = update
             
+            # 检查是否使用 Cloudflare 验证
+            if config.VERIFICATION_USE_CLOUDFLARE:
+                has_pending, is_expired = is_cloudflare_verification_pending(user.id)
+                
+                if has_pending and not is_expired:
+                    await update.message.reply_text(
+                        "您还有未完成的 Cloudflare 人机验证，请先完成验证后再发送消息。"
+                    )
+                    return
+                else:
+                    message_text, keyboard, site_key = await create_cloudflare_verification(user.id)
+                    await update.message.reply_text(
+                        message_text,
+                        reply_markup=keyboard,
+                        parse_mode='Markdown'
+                    )
+                    return
+            
             # 获取用户的个人验证模式偏好，如果没有则使用全局配置
             user_verification_mode = await db.get_user_verification_mode(user.id)
             use_image_verification = config.VERIFICATION_USE_IMAGE
@@ -194,43 +214,59 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ai_check_disabled = await db.is_ai_check_disabled(user.id)
         
         if not is_exempted and not ai_check_disabled:
-            analyzing_message = await context.bot.send_message(
-                chat_id=message.chat_id,
-                text="正在通过AI分析内容是否包含垃圾信息...",
-                reply_to_message_id=message.message_id
-            )
-
-            # 检查消息是否为JSON格式
-            message_text = message.text or message.caption or ""
-            analysis_result = None
-            
-            if message_text.strip().startswith("{"):
-                # 尝试作为JSON分析
-                try:
-                    analysis_result = await gemini_service.analyze_json_message(message_text)
-                except Exception as e:
-                    # JSON分析失败，降级为普通文本分析
-                    print(f"JSON analysis failed: {e}, falling back to text analysis")
-                    analysis_result = None
-            
-            # 如果JSON分析失败或不是JSON，进行普通分析
-            if analysis_result is None:
-                analysis_result = await gemini_service.analyze_message(message, image_bytes)
-            
-            if analysis_result.get("is_spam"):
-                await db.save_filtered_message(
-                    user_id=user.id,
-                    message_id=message.message_id,
-                    content=message.text or message.caption,
-                    reason=analysis_result.get("reason"),
-                    media_type=message.photo and "photo" or message.sticker and "sticker",
-                    media_file_id=message.photo and message.photo[-1].file_id or message.sticker and message.sticker.file_id,
+            analyzing_message = None
+            try:
+                analyzing_message = await context.bot.send_message(
+                    chat_id=message.chat_id,
+                    text="正在通过AI分析内容是否包含垃圾信息...",
+                    reply_to_message_id=message.message_id
                 )
-                reason = analysis_result.get("reason", "未提供原因")
-                await analyzing_message.edit_text(f"您的消息已被系统拦截，因此未被转发\n\n原因：{reason}")
-                return
-            else:
-                await analyzing_message.delete()
+
+                # 检查消息是否为JSON格式
+                message_text = message.text or message.caption or ""
+                analysis_result = None
+                
+                if message_text.strip().startswith("{"):
+                    # 尝试作为JSON分析
+                    try:
+                        analysis_result = await gemini_service.analyze_json_message(message_text)
+                    except Exception as e:
+                        # JSON分析失败，降级为普通文本分析
+                        print(f"JSON analysis failed: {e}, falling back to text analysis")
+                        analysis_result = None
+                
+                # 如果JSON分析失败或不是JSON，进行普通分析
+                if analysis_result is None:
+                    analysis_result = await gemini_service.analyze_message(message, image_bytes)
+                
+                if analysis_result.get("is_spam"):
+                    await db.save_filtered_message(
+                        user_id=user.id,
+                        message_id=message.message_id,
+                        content=message.text or message.caption,
+                        reason=analysis_result.get("reason"),
+                        media_type=message.photo and "photo" or message.sticker and "sticker",
+                        media_file_id=message.photo and message.photo[-1].file_id or message.sticker and message.sticker.file_id,
+                    )
+                    reason = analysis_result.get("reason", "未提供原因")
+                    await analyzing_message.edit_text(f"您的消息已被系统拦截，因此未被转发\n\n原因：{reason}")
+                    return
+                else:
+                    await analyzing_message.delete()
+            except asyncio.TimeoutError:
+                print("AI analysis timeout")
+                if analyzing_message:
+                    try:
+                        await analyzing_message.delete()
+                    except:
+                        pass
+            except Exception as e:
+                print(f"AI analysis error: {e}")
+                if analyzing_message:
+                    try:
+                        await analyzing_message.delete()
+                    except:
+                        pass
 
     thread_id, is_new = await get_or_create_thread(update, context)
     if not thread_id:

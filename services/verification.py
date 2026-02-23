@@ -4,9 +4,11 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from database import models as db
 from config import config
 from services.gemini_service import gemini_service
+from services.cloudflare_service import verify_cloudflare_token
 
 pending_verifications = {}
 pending_image_verifications = {}
+pending_cloudflare_verifications = {}  # 存储待处理的 Cloudflare 验证
 
 async def create_verification(user_id: int):
     challenge = await gemini_service.generate_verification_challenge()
@@ -33,7 +35,8 @@ async def create_verification(user_id: int):
 async def create_image_verification(user_id: int):
     """创建图片验证码"""
     import io
-    image_verification = await gemini_service.generate_image_verification()
+    captcha_type = config.VERIFICATION_IMAGE_CAPTCHA_TYPE
+    image_verification = await gemini_service.generate_image_verification(captcha_type)
     
     captcha_text = image_verification['captcha_text']
     image_bytes = image_verification['image_bytes']
@@ -138,7 +141,8 @@ async def verify_image_answer(user_id: int, answer: str):
         return False, message, True, None
     
     # 生成新的图片验证码
-    image_verification = await gemini_service.generate_image_verification()
+    captcha_type = config.VERIFICATION_IMAGE_CAPTCHA_TYPE
+    image_verification = await gemini_service.generate_image_verification(captcha_type)
     
     new_image_bytes = image_verification['image_bytes']
     new_captcha_text = image_verification['captcha_text']
@@ -211,3 +215,78 @@ def get_pending_verification_message(user_id: int):
     ]
     
     return question, InlineKeyboardMarkup(keyboard)
+
+
+async def create_cloudflare_verification(user_id: int):
+    """创建 Cloudflare Turnstile 验证"""
+    if not config.CLOUDFLARE_TURNSTILE_SITE_KEY:
+        return None, "Cloudflare 验证未配置", None
+    
+    pending_cloudflare_verifications[user_id] = {
+        'created_at': time.time(),
+        'attempts': 0
+    }
+    
+    keyboard = [
+        [InlineKeyboardButton(
+            "🔐 点击验证",
+            callback_data=f"cloudflare_verify_{user_id}"
+        )]
+    ]
+    
+    message_text = (
+        "🔒 请完成 Cloudflare 安全验证以继续\n\n"
+        "点击下方按钮打开验证窗口。\n"
+        f"验证超时时间: {config.VERIFICATION_TIMEOUT} 秒"
+    )
+    
+    return message_text, InlineKeyboardMarkup(keyboard), config.CLOUDFLARE_TURNSTILE_SITE_KEY
+
+
+async def verify_cloudflare_token(user_id: int, token: str):
+    """验证 Cloudflare 令牌"""
+    if user_id not in pending_cloudflare_verifications:
+        return False, "验证已过期或不存在。", False
+    
+    verification = pending_cloudflare_verifications[user_id]
+    
+    if time.time() - verification['created_at'] > config.VERIFICATION_TIMEOUT:
+        del pending_cloudflare_verifications[user_id]
+        return False, "验证超时，请重新发送消息。", False
+    
+    verification['attempts'] += 1
+    
+    # 验证令牌
+    from services.cloudflare_service import verify_cloudflare_token as cf_verify
+    is_valid = await cf_verify(token)
+    
+    if is_valid:
+        del pending_cloudflare_verifications[user_id]
+        await db.update_user_verification(user_id, is_verified=True)
+        return True, "✅ 验证成功！", False
+    
+    if verification['attempts'] >= config.MAX_VERIFICATION_ATTEMPTS:
+        del pending_cloudflare_verifications[user_id]
+        await db.add_to_blacklist(
+            user_id, 
+            reason="Cloudflare 验证失败次数过多", 
+            blocked_by=config.BOT_ID
+        )
+        return False, "❌ 验证失败次数过多，您已被暂时封禁。", True
+    
+    return False, f"❌ 验证失败，还有 {config.MAX_VERIFICATION_ATTEMPTS - verification['attempts']} 次机会。", False
+
+
+def is_cloudflare_verification_pending(user_id: int) -> tuple:
+    """检查 Cloudflare 验证是否待处理"""
+    if user_id not in pending_cloudflare_verifications:
+        return False, True
+    
+    verification = pending_cloudflare_verifications[user_id]
+    is_expired = time.time() - verification['created_at'] > config.VERIFICATION_TIMEOUT
+    
+    if is_expired:
+        del pending_cloudflare_verifications[user_id]
+        return False, True
+    
+    return True, False

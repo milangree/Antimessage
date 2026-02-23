@@ -20,6 +20,11 @@ class Config:
     
     VERIFICATION_ENABLED = os.getenv('VERIFICATION_ENABLED', 'true').lower() == 'true'
     VERIFICATION_USE_IMAGE = os.getenv('VERIFICATION_USE_IMAGE', 'false').lower() == 'true'
+    VERIFICATION_IMAGE_CAPTCHA_TYPE = os.getenv('VERIFICATION_IMAGE_CAPTCHA_TYPE', 'mixed')  # 'digits', 'letters', 'mixed'
+    VERIFICATION_USE_CLOUDFLARE = os.getenv('VERIFICATION_USE_CLOUDFLARE', 'false').lower() == 'true'
+    CLOUDFLARE_TURNSTILE_SITE_KEY = os.getenv('CLOUDFLARE_TURNSTILE_SITE_KEY')
+    CLOUDFLARE_TURNSTILE_SECRET_KEY = os.getenv('CLOUDFLARE_TURNSTILE_SECRET_KEY')
+    CLOUDFLARE_VERIFY_PAGE_URL = os.getenv('CLOUDFLARE_VERIFY_PAGE_URL', 'http://localhost:8080/verify')
     AUTO_UNBLOCK_ENABLED = os.getenv('AUTO_UNBLOCK_ENABLED', 'true').lower() == 'true'
     
     DATABASE_PATH = os.getenv('DATABASE_PATH', './data/bot.db')
