@@ -19,7 +19,7 @@ class Config:
     AI_CONFIDENCE_THRESHOLD = int(os.getenv('AI_CONFIDENCE_THRESHOLD', '70'))
     
     VERIFICATION_ENABLED = os.getenv('VERIFICATION_ENABLED', 'true').lower() == 'true'
-    VERIFICATION_USE_IMAGE = os.getenv('VERIFICATION_USE_IMAGE', 'true').lower() == 'true'
+    VERIFICATION_USE_IMAGE = os.getenv('VERIFICATION_USE_IMAGE', 'false').lower() == 'true'
     AUTO_UNBLOCK_ENABLED = os.getenv('AUTO_UNBLOCK_ENABLED', 'true').lower() == 'true'
     
     DATABASE_PATH = os.getenv('DATABASE_PATH', './data/bot.db')

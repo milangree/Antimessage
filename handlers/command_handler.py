@@ -7,32 +7,51 @@ from utils.decorators import admin_only
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    user_id = user.id
     
-    if not await db.get_user(user.id):
+    if not await db.get_user(user_id):
         await db.add_user(
-            user_id=user.id,
+            user_id=user_id,
             username=user.username,
             first_name=user.first_name,
             last_name=user.last_name,
             language_code=user.language_code
         )
     
-    welcome_message = (
-        f"你好, {user.first_name}!\n\n"
-        "欢迎使用双向聊天机器人。\n"
-        "你可以直接在这里发送消息，管理员会尽快回复你。\n\n"
-        "点击下方按钮查看功能菜单。"
-    )
+    is_admin = await db.is_admin(user_id)
     
-    keyboard = [
-        [InlineKeyboardButton("📋 用户菜单", callback_data="menu_user"),
-         InlineKeyboardButton("🔧 管理员菜单", callback_data="menu_admin")]
-    ]
-    
-    await update.message.reply_text(
-        welcome_message,
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    if is_admin:
+        # 管理员 - 显示完整的内联按钮菜单
+        welcome_message = (
+            f"你好, {user.first_name}! 👋\n\n"
+            "欢迎使用双向聊天机器人管理员面板。\n\n"
+            "请选择操作："
+        )
+        
+        keyboard = [
+            [InlineKeyboardButton("📋 用户菜单", callback_data="menu_user"),
+             InlineKeyboardButton("🔧 管理员菜单", callback_data="menu_admin")]
+        ]
+        
+        await update.message.reply_text(
+            welcome_message,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    else:
+        # 普通用户 - 不显示内联按钮，只显示基本信息和命令提示
+        welcome_message = (
+            f"你好, {user.first_name}! 👋\n\n"
+            "欢迎使用双向聊天机器人。\n"
+            "你可以直接在这里发送消息，管理员会尽快回复你。\n\n"
+            "**常用命令：**\n"
+            "• `/getid` - 获取你的用户ID\n"
+            "• `/verification_mode` - 切换验证模式\n"
+            "• `/disable_ai_check` - 管理AI内容审查\n"
+            "• `/help` - 显示完整帮助信息\n\n"
+            "如有问题，请使用上方命令获取帮助。"
+        )
+        
+        await update.message.reply_text(welcome_message, parse_mode='Markdown')
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
@@ -503,7 +522,8 @@ async def verification_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [InlineKeyboardButton("🖼️ 图片验证码", callback_data="set_verification_image"),
              InlineKeyboardButton("📝 文本验证", callback_data="set_verification_text")],
-            [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")]
+            [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")],
+            [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")]
         ]
         
         message_text = (
@@ -535,7 +555,8 @@ async def verification_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [InlineKeyboardButton("🖼️ 图片验证码", callback_data="set_verification_image"),
              InlineKeyboardButton("📝 文本验证", callback_data="set_verification_text")],
-            [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")]
+            [InlineKeyboardButton("🔄 使用默认设置", callback_data="set_verification_default")],
+            [InlineKeyboardButton("🏠 返回主菜单", callback_data="menu_start")]
         ]
         
         await update.message.reply_text(
